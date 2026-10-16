@@ -1,7 +1,7 @@
 """Erzeugt die Showcase-Bilder für die README (docs/images/).
 
-Schrift wird mit Pillow gerendert, der Druck-Effekt kommt aus derselben Engine
-wie im Plugin (printer/core.js via tools/print-raw.js).
+Die Motive werden mit Pillow gezeichnet, der Druck-Look kommt aus derselben Engine
+wie im Plugin (printer/core.js via tools/print-raw.js) – inklusive Gesamt-Deckkraft.
 Aufruf: python3 tools/make-showcase.py
 """
 import json
@@ -9,7 +9,7 @@ import os
 import subprocess
 import tempfile
 
-from PIL import Image, ImageChops, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "docs", "images")
@@ -18,63 +18,32 @@ FONTS = "/System/Library/Fonts/Supplemental/"
 IMPACT = FONTS + "Impact.ttf"
 BLACK = FONTS + "Arial Black.ttf"
 LABEL = "/System/Library/Fonts/Helvetica.ttc"
-
-PAPER = (244, 241, 233)
+PAPER = (246, 243, 236)
+INK = (22, 22, 26)
+RED = (214, 40, 56)
+BG = (226, 222, 214)
 os.makedirs(OUT, exist_ok=True)
 _n = 0
 
 
-def hexrgb(h):
-    h = h.lstrip("#")
-    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+def font(path, size):
+    return ImageFont.truetype(path, size)
 
 
-def text_alpha(text, font_path, size, pad=40):
-    font = ImageFont.truetype(font_path, size)
-    l, t, r, b = font.getbbox(text)
-    img = Image.new("L", (r - l + pad * 2, b - t + pad * 2), 0)
-    ImageDraw.Draw(img).text((pad - l, pad - t), text, font=font, fill=255)
-    return img
-
-
-def rect_alpha(w, h, m=16):
-    img = Image.new("L", (w, h), 0)
-    ImageDraw.Draw(img).rectangle((m, m, w - m, h - m), fill=255)
-    return img
-
-
-def run(alpha_img, params):
+def printed(img, params):
+    """Wendet MS Printer (ganzes Dokument) auf ein RGB-Bild an."""
     global _n
     _n += 1
-    w, h = alpha_img.size
-    a = os.path.join(TMP, f"a{_n}.raw")
-    pre = os.path.join(TMP, f"o{_n}")
+    a = os.path.join(TMP, f"a{_n}.rgb")
+    o = os.path.join(TMP, f"o{_n}.rgb")
     with open(a, "wb") as f:
-        f.write(alpha_img.tobytes())
-    subprocess.run(["node", os.path.join(ROOT, "tools", "print-raw.js"), a, str(w), str(h), json.dumps(params), pre], check=True)
-    return {k: Image.frombytes("L", (w, h), open(f"{pre}.{k}", "rb").read()) for k in ["mask", "toner", "stray", "misreg", "light"]}
+        f.write(img.convert("RGB").tobytes())
+    subprocess.run(["node", os.path.join(ROOT, "tools", "print-raw.js"), a, str(img.width), str(img.height), json.dumps(params), o], check=True)
+    return Image.frombytes("RGB", img.size, open(o, "rb").read())
 
 
-def render(base, alpha_img, params, color, pos=(0, 0)):
-    """Setzt Ebene + Effekt-Ebenen wie in Photoshop auf base zusammen."""
-    p = dict(params)
-    r = run(alpha_img, p)
-    w, h = alpha_img.size
-    region = base.crop((pos[0], pos[1], pos[0] + w, pos[1] + h))
-    ink = hexrgb(p.get("inkColor", "#161616"))
-    if p.get("misregEnabled"):
-        mis = Image.new("RGB", (w, h), hexrgb(p.get("misregColor", "#00a0e0")))
-        region = Image.composite(ImageChops.multiply(region, mis), region, r["misreg"])
-    vis = ImageChops.multiply(alpha_img, r["mask"])
-    region.paste(Image.new("RGB", (w, h), color), (0, 0), vis)
-    toner_vis = ImageChops.multiply(r["toner"], r["mask"])
-    region = Image.composite(ImageChops.multiply(region, Image.new("RGB", (w, h), ink)), region, toner_vis)
-    region.paste(Image.new("RGB", (w, h), color), (0, 0), r["stray"])
-    base.paste(region, pos)
-
-
-def label(draw, xy, text, size=18, fill=(90, 84, 78), anchor="la"):
-    draw.text(xy, text, font=ImageFont.truetype(LABEL, size), fill=fill, anchor=anchor)
+def label(draw, xy, text, size=18, fill=(70, 64, 58), anchor="la"):
+    draw.text(xy, text, font=font(LABEL, size), fill=fill, anchor=anchor)
 
 
 def noises():
@@ -83,22 +52,76 @@ def noises():
          os.path.join(ROOT, "printer", "core.js")], capture_output=True, text=True, check=True).stdout)
 
 
+def flyer(w, h, dark=False):
+    bg, fg = ((16, 16, 18), (240, 236, 228)) if dark else (PAPER, INK)
+    im = Image.new("RGB", (w, h), bg)
+    d = ImageDraw.Draw(im)
+    s = w / 420
+    d.text((24 * s, 18 * s), "NIGHT" if dark else "FLYER", font=font(IMPACT, int(110 * s)), fill=fg)
+    d.ellipse((24 * s, 160 * s, 144 * s, 280 * s), fill=RED)
+    d.text((170 * s, 175 * s), "Sa. 21 Uhr\nKellerclub", font=font(BLACK, int(30 * s)), fill=fg)
+    return im
+
+
+def mini(w, h):
+    im = Image.new("RGB", (w, h), PAPER)
+    d = ImageDraw.Draw(im)
+    d.rectangle((14, 14, w * 0.58, h * 0.5), fill=INK)
+    d.ellipse((w * 0.66, 14, w * 0.66 + h * 0.5, 14 + h * 0.5), fill=RED)
+    d.rectangle((14, h * 0.64, w - 14, h * 0.8), fill=(40, 90, 200))
+    return im
+
+
 # ------------------------------------------------------------------ Hero
 def hero():
     W, H = 1600, 640
-    img = Image.new("RGB", (W, H), PAPER)
-    a = text_alpha("MS PRINTER", IMPACT, 250)
-    p = {"texture": "riso", "scale": 110, "intensity": 80, "toner": 10, "dropout": 28, "grain": 35, "edgeRoughness": 2,
-         "misregEnabled": True, "misregX": 9, "misregY": 6, "misregColor": "#ffd23f", "misregOpacity": 95, "seed": 12,
-         "strayAmount": 35, "strayDistance": 22}
-    render(img, a, p, (232, 62, 140), ((W - a.size[0]) // 2, 40))
-    b = text_alpha("TONER · KOPIERER · RISO · INKJET · RASTER · FAX", BLACK, 40)
-    render(img, b, {"texture": "copygrain", "intensity": 70, "toner": 25, "dropout": 18, "grain": 30, "seed": 3}, (30, 30, 34),
-           ((W - b.size[0]) // 2, 400))
-    d = ImageDraw.Draw(img)
-    label(d, (W // 2, H - 50), "Druckerfehler & Kopierer-Look für Photoshop – auf Ebenen oder als Overlay für das ganze Dokument",
-          25, (110, 100, 90), "ma")
-    img.save(os.path.join(OUT, "hero.png"), optimize=True)
+    art = Image.new("RGB", (W, H), PAPER)
+    d = ImageDraw.Draw(art)
+    f = font(IMPACT, 250)
+    l, t, r, b = f.getbbox("MS PRINTER")
+    d.text(((W - (r - l)) // 2 - l, 40 - t), "MS PRINTER", font=f, fill=(232, 62, 140))
+    f2 = font(BLACK, 40)
+    txt = "TONER · KOPIERER · RISO · INKJET · RASTER · FAX"
+    l, t, r, b = f2.getbbox(txt)
+    d.text(((W - (r - l)) // 2 - l, 380), txt, font=f2, fill=INK)
+    out = printed(art, {"texture": "riso", "scale": 110, "toner": 22, "dropout": 30, "grain": 35, "paperGrain": 35, "paperTone": 25, "strength": 70, "seed": 12})
+    dd = ImageDraw.Draw(out)
+    label(dd, (W // 2, H - 60), "Lässt das ganze Dokument aussehen wie gedruckt – ohne PNG-Texturen, abgestimmt auf dein Motiv", 26, (110, 100, 90), "ma")
+    out.save(os.path.join(OUT, "hero.png"), optimize=True)
+
+
+# ------------------------------------------------------------------ Vorher / Nachher (hell + dunkel)
+def before_after():
+    w, h = 640, 457
+    rows = [
+        (flyer(w, h), {"texture": "copy3", "scale": 110}, "Helles Motiv"),
+        (flyer(w, h, True), {"texture": "copy3", "scale": 110}, "Dunkles Motiv – Auto-Anpassung zeigt helle Fehlstellen"),
+    ]
+    W, H = 2 * w + 3 * 20, len(rows) * (h + 50) + 20
+    out = Image.new("RGB", (W, H), BG)
+    d = ImageDraw.Draw(out)
+    for k, (art, p, name) in enumerate(rows):
+        y = 20 + k * (h + 50)
+        out.paste(art, (20, y))
+        out.paste(printed(art, p), (40 + w, y))
+        label(d, (20 + w // 2, y + h + 8), f"{name} · Original", 19, anchor="ma")
+        label(d, (40 + w + w // 2, y + h + 8), "MS Printer · Kopie 3. Gen. · Standard (35 %)", 19, anchor="ma")
+    out.save(os.path.join(OUT, "vorher-nachher.png"), optimize=True)
+
+
+# ------------------------------------------------------------------ Gesamt-Deckkraft
+def strength():
+    w, h = 300, 214
+    art = flyer(w, h)
+    vals = [15, 35, 60, 100]
+    W = len(vals) * (w + 16) + 16
+    out = Image.new("RGB", (W, h + 56), BG)
+    d = ImageDraw.Draw(out)
+    for k, v in enumerate(vals):
+        x = 16 + k * (w + 16)
+        out.paste(printed(art, {"texture": "copygrain", "strength": v}), (x, 16))
+        label(d, (x + w // 2, h + 24), f"Gesamt-Deckkraft {v} %" + (" (Standard)" if v == 35 else ""), 17, anchor="ma")
+    out.save(os.path.join(OUT, "deckkraft.png"), optimize=True)
 
 
 # ------------------------------------------------------------------ Galerie aller Druckfehler
@@ -111,12 +134,11 @@ def gallery():
             groups.append((n["group"], []))
         groups[-1][1].append(n)
     head = 40
-    H = gap
-    for _, items in groups:
-        H += head + ((len(items) + cols - 1) // cols) * (th + cap + gap)
+    H = gap + sum(head + ((len(i) + cols - 1) // cols) * (th + cap + gap) for _, i in groups)
     W = cols * (tw + gap) + gap
-    img = Image.new("RGB", (W, H), PAPER)
-    d = ImageDraw.Draw(img)
+    out = Image.new("RGB", (W, H), BG)
+    d = ImageDraw.Draw(out)
+    art = mini(tw, th)
     y = gap
     for gname, items in groups:
         label(d, (gap, y + 8), gname.upper(), 20, (60, 54, 48))
@@ -124,73 +146,50 @@ def gallery():
         for k, n in enumerate(items):
             x = gap + (k % cols) * (tw + gap)
             yy = y + (k // cols) * (th + cap + gap)
-            render(img, rect_alpha(tw, th, 10), {"texture": n["id"], "intensity": 85, "toner": 25, "dropout": 25, "grain": 20, "seed": 5},
-                   (40, 44, 52), (x, yy))
-            label(d, (x + tw // 2, yy + th + 4), n["name"], 17, (70, 64, 58), "ma")
+            out.paste(printed(art, {"texture": n["id"], "strength": 75, "seed": 5}), (x, yy))
+            label(d, (x + tw // 2, yy + th + 4), n["name"], 17, anchor="ma")
         y += ((len(items) + cols - 1) // cols) * (th + cap + gap)
-    img.save(os.path.join(OUT, "druckfehler.png"), optimize=True)
+    out.save(os.path.join(OUT, "druckfehler.png"), optimize=True)
 
 
 # ------------------------------------------------------------------ Regler-Demo
 def controls():
-    a = text_alpha("PRINT", IMPACT, 140, pad=36)
-    tw, th = a.size
-    base = {"texture": "copygrain", "intensity": 75, "toner": 25, "dropout": 20, "grain": 20, "seed": 21}
+    w, h = 300, 214
+    art = flyer(w, h)
+    base = {"texture": "copygrain", "strength": 60, "seed": 21}
     demos = [
-        ("Intensität 30 %", {"intensity": 30}),
-        ("Intensität 75 %", {}),
-        ("Intensität 100 %", {"intensity": 100, "toner": 40, "dropout": 35}),
-        ("Nur Toner (dunkel)", {"dropout": 0, "toner": 45}),
-        ("Nur Aussetzer (hell)", {"toner": 0, "dropout": 40, "grain": 0}),
+        ("Standard", {}),
+        ("Nur Toner", {"dropoutEnabled": False}),
+        ("Nur Aussetzer", {"tonerEnabled": False}),
+        ("Schmutz auf Papier 100 %", {"paperDirt": 100, "toner": 40}),
+        ("Papierton + Struktur", {"paperTone": 60, "paperGrain": 70, "paperToneColor": "#e8d9b5"}),
+        ("Toner farbig (Riso)", {"inkColor": "#2a3cff", "toner": 35}),
         ("Körnung 80 %", {"grain": 80}),
-        ("Kantenrauheit 6 px", {"edgeRoughness": 6}),
-        ("Streu-Toner", {"strayAmount": 80, "strayDistance": 30}),
-        ("Fehldruck-Versatz", {"misregEnabled": True, "misregX": 6, "misregY": 4, "misregColor": "#00a0e0", "misregOpacity": 80}),
-        ("Verlauf von unten", {"fadeAmount": 90, "fadeStyle": "bottom", "intensity": 100, "dropout": 45}),
-        ("Toner farbig (Riso)", {"inkColor": "#2a3cff", "inkOpacity": 90, "toner": 35}),
+        ("Verlauf: Rahmen", {"fadeAmount": 90, "fadeStyle": "frame", "toner": 45, "dropout": 35}),
         ("+ 2. Druckfehler", {"texture2": "drumstreaks", "texture2Mix": 70, "texture2Mode": "add"}),
     ]
-    cols, gap, cap = 3, 24, 34
+    cols, gap, cap = 3, 18, 30
     rows = (len(demos) + cols - 1) // cols
-    W = cols * (tw + gap) + gap
-    H = rows * (th + cap + gap) + gap
-    img = Image.new("RGB", (W, H), PAPER)
-    d = ImageDraw.Draw(img)
+    W = cols * (w + gap) + gap
+    H = rows * (h + cap + gap) + gap
+    out = Image.new("RGB", (W, H), BG)
+    d = ImageDraw.Draw(out)
     for k, (name, over) in enumerate(demos):
-        x = gap + (k % cols) * (tw + gap)
-        y = gap + (k // cols) * (th + cap + gap)
-        render(img, a, dict(base, **over), (214, 40, 56), (x, y))
-        label(d, (x + tw // 2, y + th + 2), name, 19, (70, 64, 58), "ma")
-    img.save(os.path.join(OUT, "regler.png"), optimize=True)
-
-
-# ------------------------------------------------------------------ Dokument-Modus
-def document_mode():
-    W, H = 1400, 520
-    clean = Image.new("RGB", (W // 2 - 10, H), PAPER)
-    d = ImageDraw.Draw(clean)
-    d.rectangle((40, 40, clean.size[0] - 40, 260), fill=(26, 26, 30))
-    d.text((70, 90), "FLYER", font=ImageFont.truetype(IMPACT, 130), fill=PAPER)
-    d.ellipse((60, 300, 260, 500), fill=(214, 40, 56))
-    d.text((290, 320), "Sa. 21 Uhr\nKellerclub\nEintritt frei", font=ImageFont.truetype(BLACK, 40), fill=(26, 26, 30))
-    printed = clean.copy()
-    w, h = printed.size
-    full = Image.new("L", (w, h), 255)
-    r = run(full, {"target": "document", "texture": "copy3", "scale": 120, "intensity": 85, "toner": 18, "dropout": 22, "grain": 40, "seed": 9})
-    printed = Image.composite(Image.new("RGB", (w, h), (20, 20, 22)), printed, r["toner"])
-    printed = Image.composite(Image.new("RGB", (w, h), PAPER), printed, r["light"])
-    out = Image.new("RGB", (W, H + 40), (232, 228, 220))
-    out.paste(clean, (0, 0))
-    out.paste(printed, (W // 2 + 10, 0))
-    dd = ImageDraw.Draw(out)
-    label(dd, (W // 4, H + 8), "Original", 20, (70, 64, 58), "ma")
-    label(dd, (3 * W // 4, H + 8), "Ziel „Ganzes Dokument“ · Kopie 3. Gen.", 20, (70, 64, 58), "ma")
-    out.save(os.path.join(OUT, "dokument.png"), optimize=True)
+        x = gap + (k % cols) * (w + gap)
+        y = gap + (k // cols) * (h + cap + gap)
+        out.paste(printed(art, dict(base, **over)), (x, y))
+        label(d, (x + w // 2, y + h + 4), name, 18, anchor="ma")
+    out.save(os.path.join(OUT, "regler.png"), optimize=True)
 
 
 if __name__ == "__main__":
+    for f in ["dokument.png"]:
+        p = os.path.join(OUT, f)
+        if os.path.exists(p):
+            os.remove(p)
     hero()
+    before_after()
+    strength()
     gallery()
     controls()
-    document_mode()
     print("Bilder geschrieben:", ", ".join(sorted(os.listdir(OUT))))

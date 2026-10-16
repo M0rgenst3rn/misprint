@@ -1,7 +1,8 @@
 "use strict";
 // MS Printer – Photoshop-UXP-Panel.
-// Ebenen-Modus: Aussetzer als Ebenenmaske, Toner als geclippte Ebene, optional Streu-Toner und
-// Fehldruck-Versatz als eigene Ebenen. Dokument-Modus: eine Overlay-Ebene über allem.
+// Lässt das GANZE Dokument aussehen wie gedruckt: legt oben eine Gruppe „MS Printer“ mit echten
+// Textur-Ebenen an (Toner, Aussetzer, Papierstruktur, Papierton) – prozedural und auf das Dokument
+// abgestimmt (Toner-Schmutz auf Papier, Aussetzer nur im Druck).
 
 const { app, core, action, imaging } = require("photoshop");
 const { batchPlay } = action;
@@ -10,62 +11,58 @@ const uxpStorage = require("uxp").storage;
 const lfs = uxpStorage.localFileSystem;
 
 const $ = (id) => document.getElementById(id);
-const STORE_KEY = "msprinter.state.v1";
-const PRESET_KEY = "msprinter.presets.v1";
-const SUFFIX = { toner: " · Toner", stray: " · Streutoner", misreg: " · Versatz" };
-const OVERLAY_NAME = "MS Printer · Overlay";
+const STORE_KEY = "msprinter.state.v2";
+const PRESET_KEY = "msprinter.presets.v2";
+const GROUP_NAME = "MS Printer";
+const L = { dropout: "Aussetzer", toner: "Toner", paper: "Papierstruktur", tone: "Papierton" };
 const HIST = "MS Printer";
 
 const BUILTIN_PRESETS = {
-  "Laserdrucker – Toner leer": { texture: "lowtoner", scale: 120, intensity: 85, toner: 8, dropout: 45, grain: 30, softness: 20 },
-  "Laserdrucker – Streifen": { texture: "drumstreaks", scale: 100, intensity: 75, toner: 30, dropout: 15, grain: 20 },
-  "Fotokopie": { texture: "copygrain", intensity: 70, toner: 30, dropout: 20, grain: 30, strayAmount: 30, strayDistance: 18 },
-  "Fotokopie – 3. Generation": { texture: "copy3", scale: 120, intensity: 90, toner: 40, dropout: 35, grain: 50, edgeRoughness: 3, strayAmount: 50, strayDistance: 25 },
-  "Fotokopie – kaputt": { texture: "copy5", scale: 140, intensity: 100, toner: 45, dropout: 40, grain: 60, edgeRoughness: 5, strayAmount: 70, strayDistance: 35, texture2: "glassdust", texture2Mix: 60, texture2Mode: "add" },
-  "Riso – Zweifarbig": { texture: "riso", intensity: 70, toner: 12, dropout: 30, grain: 30, misregEnabled: true, misregX: 3, misregY: 2, misregColor: "#ff48b0", misregOpacity: 75 },
-  "Riso – Fleckig": { texture: "risomottle", scale: 130, intensity: 75, toner: 10, dropout: 40, grain: 25, inkColor: "#3a2a1a", inkOpacity: 60 },
-  "Zeitungsdruck": { texture: "newsprint", intensity: 70, toner: 20, dropout: 25, grain: 15, misregEnabled: true, misregX: 2, misregY: 1, misregColor: "#00a0e0", misregOpacity: 45 },
-  "Siebdruck": { texture: "mesh", scale: 90, intensity: 70, toner: 10, dropout: 30, grain: 10, edgeRoughness: 2.5 },
-  "Inkjet billig": { texture: "inkband", intensity: 70, toner: 15, dropout: 25, grain: 20, texture2: "nozzle", texture2Mix: 70, texture2Mode: "add" },
-  "Fax": { texture: "fax", intensity: 85, toner: 35, dropout: 30, grain: 35, edgeRoughness: 2 },
-  "Kassenbon": { texture: "receipt", intensity: 80, toner: 10, dropout: 40, grain: 25, fadeAmount: 60, fadeStyle: "bottom" },
-  "Nadeldrucker": { texture: "dotmatrix", scale: 80, intensity: 80, toner: 15, dropout: 45, grain: 10 },
-  "Halftone-Poster": { texture: "halftone", scale: 70, intensity: 80, toner: 15, dropout: 40, grain: 10 },
+  "Fotokopie": { texture: "copygrain", toner: 25, dropout: 18, grain: 30, paperDirt: 45, paperGrain: 25 },
+  "Fotokopie – 3. Generation": { texture: "copy3", scale: 120, toner: 38, dropout: 30, grain: 50, paperDirt: 70, paperGrain: 35, softness: 8 },
+  "Fotokopie – kaputt": { texture: "copy5", scale: 140, toner: 45, dropout: 40, grain: 60, paperDirt: 90, texture2: "glassdust", texture2Mix: 60, texture2Mode: "add" },
+  "Laserdrucker – Toner leer": { texture: "lowtoner", scale: 120, toner: 6, dropout: 45, grain: 30, paperDirt: 10, softness: 20 },
+  "Laserdrucker – Streifen": { texture: "drumstreaks", toner: 30, dropout: 15, grain: 20, paperDirt: 60 },
+  "Riso – Fleckig": { texture: "risomottle", scale: 130, toner: 10, dropout: 38, grain: 25, inkColor: "#2b2236", tonerOpacity: 60, paperGrain: 40, paperTone: 35 },
+  "Riso – Korn": { texture: "riso", toner: 12, dropout: 30, grain: 35, paperGrain: 35, paperTone: 25 },
+  "Zeitungsdruck": { texture: "newsprint", toner: 20, dropout: 25, grain: 15, paperGrain: 40, paperTone: 45, paperToneColor: "#e9e1cc" },
+  "Siebdruck": { texture: "mesh", scale: 90, toner: 8, dropout: 30, grain: 10, paperGrain: 30 },
+  "Inkjet billig": { texture: "inkband", toner: 15, dropout: 25, grain: 20, texture2: "nozzle", texture2Mix: 70, texture2Mode: "add" },
+  "Fax": { texture: "fax", toner: 35, dropout: 30, grain: 35, paperDirt: 60, paperTone: 20, paperToneColor: "#ecebe4" },
+  "Kassenbon": { texture: "receipt", toner: 10, dropout: 40, grain: 25, fadeAmount: 60, fadeStyle: "bottom", paperTone: 15 },
+  "Nadeldrucker": { texture: "dotmatrix", scale: 80, toner: 12, dropout: 45, grain: 10 },
+  "Altes Papier": { texture: "paper", toner: 8, dropout: 12, grain: 15, paperGrain: 70, paperTone: 60, paperToneColor: "#e8d9b5", fadeAmount: 50, fadeStyle: "frame" },
 };
 
 const SLIDERS = [
+  { key: "strength", label: "Gesamt-Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secStrengthTop" },
   { key: "scale", label: "Scale", min: 10, max: 500, step: 1, unit: "%", parent: "secTexture" },
   { key: "rotation", label: "Winkel", min: 0, max: 360, step: 1, unit: "°", parent: "secTexture" },
   { key: "grainSize", label: "Korngröße", min: 0.5, max: 8, step: 0.5, unit: "px", parent: "secTexture" },
   { key: "texture2Mix", label: "Mix", min: 0, max: 100, step: 1, unit: "%", parent: "secTexture2" },
   { key: "texture2Scale", label: "Scale 2", min: 10, max: 500, step: 1, unit: "%", parent: "secTexture2" },
-  { key: "intensity", label: "Intensität", min: 0, max: 100, step: 1, unit: "%", parent: "secStrength" },
-  { key: "toner", label: "Toner (dunkel)", min: 0, max: 100, step: 1, unit: "%", parent: "secStrength" },
-  { key: "dropout", label: "Aussetzer (hell)", min: 0, max: 100, step: 1, unit: "%", parent: "secStrength" },
-  { key: "grain", label: "Körnung", min: 0, max: 100, step: 1, unit: "%", parent: "secStrength" },
-  { key: "softness", label: "Weichheit", min: 0, max: 100, step: 1, unit: "%", parent: "secStrength" },
-  { key: "edgeRoughness", label: "Kantenrauheit", min: 0, max: 40, step: 0.5, unit: "px", parent: "secEdges" },
-  { key: "strayAmount", label: "Streu-Toner", min: 0, max: 100, step: 1, unit: "%", parent: "secEdges" },
-  { key: "strayDistance", label: "Streu-Abstand", min: 2, max: 150, step: 1, unit: "px", parent: "secEdges" },
-  { key: "inkOpacity", label: "Toner-Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secColor" },
-  { key: "misregX", label: "Versatz X", min: -40, max: 40, step: 0.5, unit: "px", parent: "secMisreg" },
-  { key: "misregY", label: "Versatz Y", min: -40, max: 40, step: 0.5, unit: "px", parent: "secMisreg" },
-  { key: "misregOpacity", label: "Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secMisreg" },
+  { key: "toner", label: "Menge", min: 0, max: 100, step: 1, unit: "%", parent: "secToner" },
+  { key: "tonerOpacity", label: "Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secToner" },
+  { key: "paperDirt", label: "Schmutz auf Papier", min: 0, max: 100, step: 1, unit: "%", parent: "secToner" },
+  { key: "dropout", label: "Menge", min: 0, max: 100, step: 1, unit: "%", parent: "secDropout" },
+  { key: "dropoutOpacity", label: "Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secDropout" },
+  { key: "paperGrain", label: "Struktur", min: 0, max: 100, step: 1, unit: "%", parent: "secPaper" },
+  { key: "paperTone", label: "Papierton", min: 0, max: 100, step: 1, unit: "%", parent: "secPaper" },
+  { key: "grain", label: "Körnung", min: 0, max: 100, step: 1, unit: "%", parent: "secStructure" },
+  { key: "softness", label: "Weichheit", min: 0, max: 100, step: 1, unit: "%", parent: "secStructure" },
   { key: "fadeAmount", label: "Stärke", min: 0, max: 100, step: 1, unit: "%", parent: "secFade" },
 ];
-const COLOR_KEYS = ["inkColor", "paperColor", "misregColor"];
+const COLOR_KEYS = ["inkColor", "paperColor", "paperToneColor"];
 
 let params = loadParams();
-let previewSrc = null;   // { mode, w, h, rgba, alpha, sb, pxScale, avg }
-let imageTextures = [];  // [{ id: "img:…", name, w, h, file, data: Uint8Array }]
+let previewSrc = null;   // { mode, w, h, rgba, cov, sb, full, pxScale, docId }
+let previewMode = "fit"; // "fit" | "detail"
+let imageTextures = [];
 let busy = false;
 let pipeCache = { key: "", pipe: null };
 const ctl = {};
 
-function texData(id) {
-  if (!id) return null;
-  return imageTextures.find((t) => t.id === id) || null;
-}
+function texData(id) { return id ? imageTextures.find((t) => t.id === id) || null : null; }
 function texLabel(id) {
   const t = Core.NOISES.find((x) => x.id === id) || imageTextures.find((x) => x.id === id);
   return t ? t.name : "";
@@ -96,41 +93,14 @@ function hexToRgb(hex) {
 function rgbToHex(r, g, b) {
   return "#" + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
 }
-function allLayers(list, out) {
-  out = out || [];
-  for (const l of list) { out.push(l); if (l.layers) allLayers(l.layers, out); }
-  return out;
-}
-// Pixel-Bounds + Puffer für Kantenrauheit, Streu-Toner und Versatz
-function layerBounds(layer, doc, p) {
-  const a = layer.boundsNoEffects || layer.bounds;
-  if (a.right - a.left <= 0 || a.bottom - a.top <= 0) return { left: 0, top: 0, right: 0, bottom: 0 };
-  p = p || params;
-  const pad = Math.ceil(Math.max(12,
-    (p.strayAmount > 0 ? p.strayDistance : 0) + 4,
-    p.misregEnabled ? Math.max(Math.abs(p.misregX), Math.abs(p.misregY)) + 4 : 0));
-  let left = Math.floor(a.left) - pad, top = Math.floor(a.top) - pad;
-  let right = Math.ceil(a.right) + pad, bottom = Math.ceil(a.bottom) + pad;
-  if (doc) {
-    left = Math.max(0, left); top = Math.max(0, top);
-    right = Math.min(Math.round(Number(doc.width)), right);
-    bottom = Math.min(Math.round(Number(doc.height)), bottom);
-  }
-  return { left, top, right, bottom };
-}
 function docBounds(doc) {
   return { left: 0, top: 0, right: Math.round(Number(doc.width)), bottom: Math.round(Number(doc.height)) };
-}
-function paramsFor(index) {
-  const p = Object.assign({}, params);
-  if (p.varySeed && index > 0) p.seed = (p.seed | 0) + index * 7919;
-  return p;
 }
 function debounce(fn, ms) {
   let t = null;
   return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
-
+const TARGET = [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }];
 async function selectLayer(id) {
   await batchPlay([{ _obj: "select", _target: [{ _ref: "layer", _id: id }], makeVisible: false }], {});
 }
@@ -142,96 +112,18 @@ async function selectLayers(ids) {
   });
   if (cmds.length) await batchPlay(cmds, {});
 }
-async function hasUserMask(id) {
-  const r = await batchPlay([{ _obj: "get", _target: [{ _property: "hasUserMask" }, { _ref: "layer", _id: id }] }], {});
-  return !!(r && r[0] && r[0].hasUserMask);
+function findGroups(doc) { return doc.layers.filter((l) => l.name === GROUP_NAME && l.layers); }
+// Lose MS-Printer-Ebenen außerhalb der Gruppe (dürfen nie übrig bleiben)
+function strayLayers(doc) {
+  const names = Object.values(L);
+  return doc.layers.filter((l) => !l.layers && names.indexOf(l.name) >= 0);
 }
-async function maskEnabled(id) {
-  const r = await batchPlay([{ _obj: "get", _target: [{ _property: "userMaskEnabled" }, { _ref: "layer", _id: id }] }], {});
-  return !(r && r[0] && r[0].userMaskEnabled === false);
-}
-async function setMaskEnabled(id, on) {
-  await batchPlay([{ _obj: "set", _target: [{ _ref: "layer", _id: id }], to: { _obj: "layer", userMaskEnabled: on } }], {});
-}
-const TARGET = [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }];
-async function makeLayerAbove(doc, targetId, name) {
-  await selectLayer(targetId);
-  await batchPlay([{ _obj: "make", _target: [{ _ref: "layer" }], using: { _obj: "layer", name } }], {});
-  return doc.activeLayers[0];
-}
-async function setBlendMode(mode) {
-  await batchPlay([{ _obj: "set", _target: TARGET, to: { _obj: "layer", mode: { _enum: "blendMode", _value: mode } } }], {});
-}
-async function putRGBA(doc, layerId, buf, w, h, left, top) {
-  const d = await imaging.createImageDataFromBuffer(fromBuf8(buf, doc), {
-    width: w, height: h, components: 4, chunky: true, colorSpace: "RGB", colorProfile: "sRGB IEC61966-2.1",
-  });
-  try {
-    await imaging.putPixels({ documentID: doc.id, layerID: layerId, imageData: d, targetBounds: { left, top } });
-  } finally {
-    d.dispose();
+// Gruppe MIT Inhalt löschen – Layer.delete() auf einer Gruppe lässt die Kinder sonst stehen
+async function deleteGroups(doc) {
+  for (const g of findGroups(doc)) {
+    for (const c of g.layers.slice()) await c.delete();
+    await g.delete();
   }
-}
-function solidRGBA(alpha, rgb) {
-  const buf = new Uint8Array(alpha.length * 4);
-  for (let i = 0; i < alpha.length; i++) {
-    buf[i * 4] = rgb.r; buf[i * 4 + 1] = rgb.g; buf[i * 4 + 2] = rgb.b; buf[i * 4 + 3] = alpha[i];
-  }
-  return buf;
-}
-function anyNonZero(a) { for (let i = 0; i < a.length; i++) if (a[i]) return true; return false; }
-
-// ---------------------------------------------------------------- Protokoll
-
-const logLines = [];
-let logWriteTimer = null;
-function log(msg, data) {
-  const line = new Date().toISOString() + " " + msg + (data !== undefined ? " " + JSON.stringify(data) : "");
-  logLines.push(line);
-  if (logLines.length > 400) logLines.splice(0, logLines.length - 400);
-  clearTimeout(logWriteTimer);
-  logWriteTimer = setTimeout(async () => {
-    try {
-      const folder = await lfs.getDataFolder();
-      const f = await folder.createFile("printer-log.txt", { overwrite: true });
-      await f.write(logLines.join("\n") + "\n");
-    } catch (e) { console.log("Log nicht schreibbar", e); }
-  }, 300);
-}
-function effectiveParams(p) {
-  const out = {};
-  for (const k of Object.keys(Core.DEFAULTS)) if (k !== "varySeed") out[k] = p[k];
-  return out;
-}
-function diffParams(a, b) {
-  return Object.keys(a).filter((k) => JSON.stringify(a[k]) !== JSON.stringify(b[k]));
-}
-const lastApplied = new Map();
-
-async function readLayerUnmasked(ctx, doc, layer, sourceBounds, targetSize) {
-  const opts = { documentID: doc.id, layerID: layer.id, sourceBounds, colorSpace: "RGB", componentSize: 8 };
-  if (targetSize) opts.targetSize = targetSize;
-  let disabled = false, hid = null;
-  if (await hasUserMask(layer.id) && await maskEnabled(layer.id)) {
-    if (ctx) hid = await ctx.hostControl.suspendHistory({ documentID: doc.id, name: HIST + " lesen" });
-    await setMaskEnabled(layer.id, false);
-    disabled = true;
-  }
-  try {
-    return await imaging.getPixels(opts);
-  } finally {
-    if (disabled) {
-      if (hid !== null) await ctx.hostControl.resumeHistory(hid, false);
-      else await setMaskEnabled(layer.id, true);
-    }
-  }
-}
-
-function extractAlpha(data, comps, n) {
-  const alpha = new Uint8Array(n);
-  if (comps === 4 || comps === 2) for (let i = 0; i < n; i++) alpha[i] = data[i * comps + comps - 1];
-  else alpha.fill(255);
-  return alpha;
 }
 function to8bit(data, componentSize) {
   if (componentSize === 8) return data;
@@ -254,16 +146,54 @@ function fromBuf8(buf, doc) {
   }
   return buf;
 }
-// Durchschnittsfarbe der deckenden Pixel (Farbe für Streu-Toner)
-function averageColor(raw, comps, n) {
-  let r = 0, g = 0, b = 0, c = 0;
-  for (let i = 0; i < n; i++) {
-    const a = comps >= 4 ? raw[i * comps + 3] : 255;
-    if (a < 200) continue;
-    r += raw[i * comps]; g += raw[i * comps + 1]; b += raw[i * comps + 2]; c++;
+function anyNonZero(a) { for (let i = 0; i < a.length; i++) if (a[i]) return true; return false; }
+
+// Liest das Dokument OHNE die MS-Printer-Gruppe (Gruppe kurz ausblenden, Protokoll zurückrollen).
+async function readComposite(ctx, doc, sourceBounds, targetSize) {
+  const groups = findGroups(doc).filter((g) => g.visible);
+  let hid = null;
+  if (groups.length) {
+    hid = await ctx.hostControl.suspendHistory({ documentID: doc.id, name: HIST + " lesen" });
+    for (const g of groups) g.visible = false;
   }
-  return c ? { r: r / c, g: g / c, b: b / c } : { r: 0, g: 0, b: 0 };
+  try {
+    const opts = { documentID: doc.id, sourceBounds, colorSpace: "RGB", componentSize: 8 };
+    if (targetSize) opts.targetSize = targetSize;
+    const res = await imaging.getPixels(opts);
+    const id = res.imageData;
+    const raw = to8bit(await id.getData({ chunky: true }), id.componentSize || 8);
+    const out = { w: id.width, h: id.height, comps: id.components, raw, sb: res.sourceBounds || sourceBounds };
+    id.dispose();
+    return out;
+  } finally {
+    if (hid !== null) await ctx.hostControl.resumeHistory(hid, false);
+  }
 }
+
+// ---------------------------------------------------------------- Protokoll
+
+const logLines = [];
+let logWriteTimer = null;
+function log(msg, data) {
+  const line = new Date().toISOString() + " " + msg + (data !== undefined ? " " + JSON.stringify(data) : "");
+  logLines.push(line);
+  if (logLines.length > 400) logLines.splice(0, logLines.length - 400);
+  clearTimeout(logWriteTimer);
+  logWriteTimer = setTimeout(async () => {
+    try {
+      const folder = await lfs.getDataFolder();
+      const f = await folder.createFile("printer-log.txt", { overwrite: true });
+      await f.write(logLines.join("\n") + "\n");
+    } catch (e) { console.log("Log nicht schreibbar", e); }
+  }, 300);
+}
+function effectiveParams(p) {
+  const out = {};
+  for (const k of Object.keys(Core.DEFAULTS)) out[k] = p[k];
+  return out;
+}
+function diffParams(a, b) { return Object.keys(a).filter((k) => JSON.stringify(a[k]) !== JSON.stringify(b[k])); }
+const lastApplied = new Map(); // docId -> Parameter
 
 // ---------------------------------------------------------------- UI aufbauen
 
@@ -279,20 +209,14 @@ function buildSliders() {
     const range = row.querySelector(".ctl-range");
     const num = row.querySelector(".ctl-num");
     ctl[s.key] = { range, num, def: s };
-    const onRange = () => {
-      params[s.key] = Number(range.value);
-      num.value = String(params[s.key]);
-      changed();
-    };
+    const onRange = () => { params[s.key] = Number(range.value); num.value = String(params[s.key]); changed(); };
     range.addEventListener("input", onRange);
     range.addEventListener("change", onRange);
     num.addEventListener("change", () => {
       let v = parseFloat(String(num.value).replace(",", "."));
       if (isNaN(v)) v = params[s.key];
-      v = Math.max(s.min, Math.min(s.max, v));
-      params[s.key] = v;
-      syncUI();
-      changed();
+      params[s.key] = Math.max(s.min, Math.min(s.max, v));
+      syncUI(); changed();
     });
   }
 }
@@ -307,32 +231,28 @@ function buildTextureGrid() {
     tile.dataset.id = t.id;
     tile.title = t.name;
     tile.innerHTML = t.id === "__add"
-      ? `<div class="ph add">+</div><div class="lbl">Bild laden…</div>`
+      ? `<div class="ph add">+</div><div class="lbl">Scan laden…</div>`
       : `<div class="ph"></div><div class="lbl">${t.name}</div>`;
     tile.addEventListener("click", () => {
       if (t.id === "__add") return importImageTextures();
       params.texture = t.id;
-      syncUI();
-      changed();
+      syncUI(); changed();
     });
     grid.appendChild(tile);
   };
+  const addGroup = (name) => {
+    const g = document.createElement("div");
+    g.className = "grp";
+    g.textContent = name;
+    grid.appendChild(g);
+  };
   for (const n of Core.NOISES) {
-    if (n.group !== group) {
-      group = n.group;
-      const g = document.createElement("div");
-      g.className = "grp";
-      g.textContent = group;
-      grid.appendChild(g);
-    }
+    if (n.group !== group) { group = n.group; addGroup(group); }
     addTile(n);
   }
-  const g = document.createElement("div");
-  g.className = "grp";
-  g.textContent = "Eigene Scans";
-  grid.appendChild(g);
+  addGroup("Eigene Scans");
   for (const t of imageTextures) addTile(t);
-  addTile({ id: "__add", name: "Bild laden" });
+  addTile({ id: "__add", name: "Scan laden" });
   renderThumbs();
 }
 
@@ -360,8 +280,7 @@ async function encodeRGB(rgb, w, h) {
     width: w, height: h, components: 3, chunky: true, colorSpace: "RGB", colorProfile: "sRGB IEC61966-2.1",
   });
   try {
-    const b64 = await imaging.encodeImageData({ imageData: imgData, base64: true });
-    return "data:image/jpeg;base64," + b64;
+    return "data:image/jpeg;base64," + await imaging.encodeImageData({ imageData: imgData, base64: true });
   } finally {
     imgData.dispose();
   }
@@ -370,7 +289,8 @@ async function encodeRGB(rgb, w, h) {
 function buildSelects() {
   $("fadeStyle").innerHTML = Core.FADE_STYLES.map((f) => `<option value="${f.id}">${f.name}</option>`).join("");
   $("texture2Mode").innerHTML = Core.MIX_MODES.map((f) => `<option value="${f.id}">${f.name}</option>`).join("");
-  $("blendMode").innerHTML = Core.BLEND_MODES.map((f) => `<option value="${f.id}">${f.name}</option>`).join("");
+  $("tonerBlend").innerHTML = Core.BLEND_MODES.map((f) => `<option value="${f.id}">${f.name}</option>`).join("");
+  $("dropoutBlend").innerHTML = Core.LIGHT_MODES.map((f) => `<option value="${f.id}">${f.name}</option>`).join("");
   buildTexture2Select();
   rebuildPresetSelect();
 }
@@ -390,10 +310,10 @@ function rebuildPresetSelect() {
   const user = loadUserPresets();
   let html = `<option value="">– Preset wählen –</option>`;
   for (const n of Object.keys(BUILTIN_PRESETS)) html += `<option value="b:${n}">${n}</option>`;
-  const userNames = Object.keys(user);
-  if (userNames.length) {
+  const names = Object.keys(user);
+  if (names.length) {
     html += `<option value="" disabled>── Eigene ──</option>`;
-    for (const n of userNames) html += `<option value="u:${n}">★ ${n}</option>`;
+    for (const n of names) html += `<option value="u:${n}">★ ${n}</option>`;
   }
   $("presetSelect").innerHTML = html;
   $("presetSelect").value = "";
@@ -414,34 +334,38 @@ function syncUI() {
   $("texture2Invert").checked = !!params.texture2Invert;
   $("tex2Controls").className = params.texture2 ? "" : "hidden";
   $("invert").checked = !!params.invert;
-  $("target").value = params.target;
-  $("blendMode").value = params.blendMode;
+  $("tonerEnabled").checked = !!params.tonerEnabled;
+  $("dropoutEnabled").checked = !!params.dropoutEnabled;
+  $("autoAdapt").checked = !!params.autoAdapt;
+  $("tonerCard").className = params.tonerEnabled ? "card" : "card off";
+  $("dropoutCard").className = params.dropoutEnabled ? "card" : "card off";
+  $("tonerBlend").value = params.tonerBlend;
+  $("dropoutBlend").value = params.dropoutBlend;
   $("fadeStyle").value = params.fadeStyle;
-  $("misregEnabled").checked = !!params.misregEnabled;
   for (const k of COLOR_KEYS) {
     $("hex-" + k).value = params[k];
     $("swatch-" + k).style.backgroundColor = params[k];
   }
-  const doc = params.target === "document";
-  $("edgeSection").className = doc ? "section hidden" : "section";
-  $("misregSection").className = doc ? "section hidden" : "section";
   $("seed").value = String(params.seed);
-  $("varySeed").checked = !!params.varySeed;
-  $("apply").textContent = doc ? "Overlay anwenden" : "Druck anwenden";
+  document.querySelectorAll(".seg-btn").forEach((el) => {
+    el.className = el.dataset.mode === previewMode ? "seg-btn active" : "seg-btn";
+  });
 }
 
 function bindControls() {
-  $("invert").addEventListener("change", (e) => { params.invert = e.target.checked; changed(); });
-  $("target").addEventListener("change", (e) => {
-    params.target = e.target.value; liveLast = null; syncUI(); changed(); refreshPreviewSource();
-  });
-  $("texture2").addEventListener("change", (e) => { params.texture2 = e.target.value; syncUI(); changed(); });
-  $("texture2Mode").addEventListener("change", (e) => { params.texture2Mode = e.target.value; changed(); });
-  $("texture2Invert").addEventListener("change", (e) => { params.texture2Invert = e.target.checked; changed(); });
+  const bindCheck = (id, key) => $(id).addEventListener("change", (e) => { params[key] = e.target.checked; syncUI(); changed(); });
+  const bindSelect = (id, key) => $(id).addEventListener("change", (e) => { params[key] = e.target.value; syncUI(); changed(); });
+  bindCheck("invert", "invert");
+  bindCheck("texture2Invert", "texture2Invert");
+  bindCheck("tonerEnabled", "tonerEnabled");
+  bindCheck("dropoutEnabled", "dropoutEnabled");
+  bindCheck("autoAdapt", "autoAdapt");
+  bindSelect("texture2", "texture2");
+  bindSelect("texture2Mode", "texture2Mode");
+  bindSelect("tonerBlend", "tonerBlend");
+  bindSelect("dropoutBlend", "dropoutBlend");
+  bindSelect("fadeStyle", "fadeStyle");
   $("deleteImgTex").addEventListener("click", () => deleteImageTexture(params.texture));
-  $("blendMode").addEventListener("change", (e) => { params.blendMode = e.target.value; changed(); });
-  $("fadeStyle").addEventListener("change", (e) => { params.fadeStyle = e.target.value; changed(); });
-  $("misregEnabled").addEventListener("change", (e) => { params.misregEnabled = e.target.checked; changed(); });
   for (const k of COLOR_KEYS) {
     $("hex-" + k).addEventListener("change", (e) => {
       let v = String(e.target.value).trim();
@@ -451,18 +375,18 @@ function bindControls() {
     });
     $("swatch-" + k).addEventListener("click", () => pickColor(k));
   }
-  $("fg-inkColor").addEventListener("click", () => {
-    try { params.inkColor = "#" + app.foregroundColor.rgb.hexValue.toLowerCase(); syncUI(); changed(); }
-    catch (e) { setStatus("Vordergrundfarbe nicht lesbar: " + e.message, true); }
-  });
   $("seed").addEventListener("change", (e) => {
     const v = parseInt(e.target.value, 10);
     if (!isNaN(v)) params.seed = v;
     syncUI(); changed();
   });
   $("dice").addEventListener("click", () => { params.seed = Math.floor(Math.random() * 99999); syncUI(); changed(); });
-  $("varySeed").addEventListener("change", (e) => { params.varySeed = e.target.checked; saveParams(); });
-  $("previewDark").addEventListener("change", () => renderPreview());
+  document.querySelectorAll(".seg-btn").forEach((el) => el.addEventListener("click", () => {
+    previewMode = el.dataset.mode;
+    syncUI();
+    refreshPreviewSource();
+  }));
+  $("previewOriginal").addEventListener("change", () => renderPreview());
   $("refreshPreview").addEventListener("click", () => refreshPreviewSource());
 
   $("presetSelect").addEventListener("change", (e) => {
@@ -470,7 +394,7 @@ function bindControls() {
     if (!v) return;
     const src = v.startsWith("b:") ? BUILTIN_PRESETS[v.slice(2)] : loadUserPresets()[v.slice(2)];
     if (!src) return;
-    params = Object.assign({}, Core.DEFAULTS, { seed: params.seed, varySeed: params.varySeed, target: params.target }, src);
+    params = Object.assign({}, Core.DEFAULTS, { seed: params.seed }, src);
     syncUI(); changed();
     setStatus(`Preset „${v.slice(2)}“ geladen.`);
   });
@@ -493,15 +417,12 @@ function bindControls() {
     rebuildPresetSelect();
     setStatus("Preset gelöscht.");
   });
-  $("resetAll").addEventListener("click", () => {
-    params = Object.assign({}, Core.DEFAULTS, { target: params.target });
-    syncUI(); changed();
-  });
+  $("resetAll").addEventListener("click", () => { params = Object.assign({}, Core.DEFAULTS); syncUI(); changed(); });
 
   $("liveCanvas").addEventListener("change", (e) => {
     liveLast = null;
     if (e.target.checked) applyPrint(true);
-    else setStatus("Live aus – der aktuelle Stand bleibt auf dem Canvas.");
+    else setStatus("Live aus – der aktuelle Stand bleibt im Dokument.");
   });
   $("apply").addEventListener("click", () => applyPrint(false));
   $("remove").addEventListener("click", removePrint);
@@ -517,22 +438,17 @@ function changed() {
   else showSyncHint();
 }
 
-function appliedKey(doc, layerId) { return doc.id + ":" + (params.target === "document" ? "doc" : layerId); }
-
 function showSyncHint() {
   try {
     const doc = app.activeDocument;
     if (!doc) return;
-    const layer = doc.activeLayers[0];
-    const applied = lastApplied.get(appliedKey(doc, layer && layer.id));
+    const applied = lastApplied.get(doc.id);
     if (!applied) return;
-    const diff = diffParams(effectiveParams(paramsFor(0)), applied);
-    if (diff.length) setStatus(`● Noch nicht auf dem Canvas: ${diff.join(", ")} – „Anwenden“ klicken oder Live einschalten.`);
-    else setStatus("Canvas entspricht den Einstellungen.");
+    const diff = diffParams(effectiveParams(params), applied);
+    if (diff.length) setStatus(`● Noch nicht im Dokument: ${diff.join(", ")} – „Anwenden“ klicken oder Live einschalten.`);
+    else setStatus("Dokument entspricht den Einstellungen.");
   } catch (e) { /* egal */ }
 }
-
-// ---------------------------------------------------------------- Farbwähler
 
 async function pickColor(key) {
   const c0 = hexToRgb(params[key]);
@@ -547,7 +463,6 @@ async function pickColor(key) {
     const c = res && res[0] && (res[0].RGBFloatColor || res[0].color);
     if (c && c.red !== undefined) {
       params[key] = rgbToHex(c.red, c.grain !== undefined ? c.grain : c.green, c.blue);
-      if (key === "misregColor") params.misregEnabled = true;
       syncUI(); changed();
     }
   } catch (e) {
@@ -556,43 +471,42 @@ async function pickColor(key) {
 }
 
 // ---------------------------------------------------------------- Vorschau
+// "Ganzes Dokument": verkleinert. "Detail 1:1": Ausschnitt aus der Mitte in Originalgröße,
+// damit man das echte Korn sieht.
 
 async function refreshPreviewSource() {
   if (busy) return;
   const doc = app.activeDocument;
-  if (!doc) { previewSrc = null; $("layerName").textContent = "–"; return renderPreview("Kein Dokument geöffnet."); }
-  const docMode = params.target === "document";
-  const layer = doc.activeLayers[0];
-  if (!docMode && !layer) { previewSrc = null; $("layerName").textContent = "–"; return renderPreview("Keine Ebene ausgewählt."); }
-  $("layerName").textContent = docMode ? "Ganzes Dokument"
-    : doc.activeLayers.length > 1 ? `${layer.name} (+${doc.activeLayers.length - 1})` : layer.name;
-  const b = docMode ? docBounds(doc) : layerBounds(layer, doc);
-  const bw = b.right - b.left, bh = b.bottom - b.top;
-  if (bw <= 0 || bh <= 0) { previewSrc = null; return renderPreview("Ebene ist leer."); }
-  const f = Math.min(1, 300 / bw, 168 / bh);
-  const ts = { width: Math.max(1, Math.round(bw * f)), height: Math.max(1, Math.round(bh * f)) };
+  if (!doc) { previewSrc = null; $("docName").textContent = "–"; return renderPreview("Kein Dokument geöffnet."); }
+  $("docName").textContent = doc.name || "Dokument";
+  const full = docBounds(doc);
+  let b = full, ts = null;
+  if (previewMode === "detail") {
+    const w = Math.min(full.right, 300), h = Math.min(full.bottom, 168);
+    const left = Math.floor((full.right - w) / 2), top = Math.floor((full.bottom - h) / 2);
+    b = { left, top, right: left + w, bottom: top + h };
+  } else {
+    const f = Math.min(1, 300 / full.right, 168 / full.bottom);
+    ts = { width: Math.max(1, Math.round(full.right * f)), height: Math.max(1, Math.round(full.bottom * f)) };
+  }
   try {
     let src = null;
     await core.executeAsModal(async (ctx) => {
-      const res = docMode
-        ? await imaging.getPixels({ documentID: doc.id, sourceBounds: b, targetSize: ts, colorSpace: "RGB", componentSize: 8 })
-        : await readLayerUnmasked(ctx, doc, layer, b, ts);
-      const id = res.imageData;
-      const raw = to8bit(await id.getData({ chunky: true }), id.componentSize || 8);
-      const n = id.width * id.height, comps = id.components;
+      const c = await readComposite(ctx, doc, b, ts);
+      const n = c.w * c.h;
       const rgba = new Uint8Array(n * 4);
       for (let i = 0; i < n; i++) {
-        rgba[i * 4] = raw[i * comps]; rgba[i * 4 + 1] = raw[i * comps + 1]; rgba[i * 4 + 2] = raw[i * comps + 2];
-        rgba[i * 4 + 3] = comps >= 4 ? raw[i * comps + 3] : 255;
+        rgba[i * 4] = c.raw[i * c.comps]; rgba[i * 4 + 1] = c.raw[i * c.comps + 1]; rgba[i * 4 + 2] = c.raw[i * c.comps + 2];
+        rgba[i * 4 + 3] = 255;
       }
-      const sb = res.sourceBounds || b;
-      const alpha = docMode ? new Uint8Array(n).fill(255) : extractAlpha(raw, comps, n);
-      src = { mode: params.target, w: id.width, h: id.height, rgba, alpha, sb, pxScale: (sb.right - sb.left) / id.width, avg: averageColor(raw, comps, n) };
-      id.dispose();
+      const cov = Core.coverageFromRGBA(c.raw, c.comps, n), luma = Core.lumaFromRGBA(c.raw, c.comps, n);
+      src = { mode: previewMode, docId: doc.id, w: c.w, h: c.h, rgba, cov, luma, info: Core.analyzeDocument(luma, cov),
+        sb: c.sb, full, pxScale: (c.sb.right - c.sb.left) / c.w };
     }, { commandName: HIST + " Vorschau" });
     ignoreEventsUntil = Date.now() + 600;
     previewSrc = src;
     renderPreview();
+    if (src.mode === "fit") showDocInfo(src.info);
   } catch (e) {
     previewSrc = null;
     renderPreview("Vorschau nicht möglich: " + (e.message || e));
@@ -611,19 +525,18 @@ async function renderPreview(msg) {
   const img = $("preview"), m = $("previewMsg");
   if (msg || !previewSrc) {
     img.className = "hidden"; m.className = "preview-msg";
-    m.textContent = msg || "Ebene auswählen…";
+    m.textContent = msg || "Dokument öffnen…";
     return;
   }
-  if (previewSrc.mode !== params.target) return refreshPreviewSource();
   const token = ++previewToken;
   const s = previewSrc;
-  const p = paramsFor(0);
-  const { sampler, cdf } = getPipeline(p, s.sb);
-  const out = Core.computePrint({
-    alpha: s.alpha, width: s.w, height: s.h, originX: s.sb.left, originY: s.sb.top,
-    pxScale: s.pxScale, bounds: s.sb, params: p, sampler, cdf,
+  const p = Object.assign({}, params);
+  const { sampler, cdf } = getPipeline(p, s.full);
+  const out = Core.computeOverlay({
+    width: s.w, height: s.h, originX: s.sb.left, originY: s.sb.top, pxScale: s.pxScale,
+    bounds: s.full, params: p, sampler, cdf, coverage: s.cov, luma: s.luma,
   });
-  const rgb = composite(s, out, p, $("previewDark").checked);
+  const rgb = $("previewOriginal").checked ? stripAlpha(s.rgba) : Core.compositeOverlay(s.rgba, 4, out, p);
   try {
     const src = await encodeRGB(rgb, s.w, s.h);
     if (token !== previewToken) return;
@@ -634,55 +547,25 @@ async function renderPreview(msg) {
     m.textContent = "Vorschau benötigt Photoshop 24.2 oder neuer.";
   }
 }
-
-// Setzt Ebene + Effekt-Ebenen so zusammen, wie Photoshop sie zeigt (für die Vorschau)
-function composite(s, out, p, dark) {
-  const c1 = dark ? 34 : 255, c2 = dark ? 44 : 228;
-  const ink = hexToRgb(p.inkColor), paper = hexToRgb(p.paperColor), mis = hexToRgb(p.misregColor);
-  const inkC = [ink.r, ink.g, ink.b], paperC = [paper.r, paper.g, paper.b], misC = [mis.r, mis.g, mis.b];
-  const avgC = [s.avg.r, s.avg.g, s.avg.b];
-  const mode = p.blendMode;
-  const rgb = new Uint8Array(s.w * s.h * 3);
-  for (let y = 0; y < s.h; y++) {
-    for (let x = 0; x < s.w; x++) {
-      const i = y * s.w + x;
-      const bg = ((x >> 3) + (y >> 3)) & 1 ? c2 : c1;
-      const docMode = p.target === "document";
-      const la = docMode ? s.rgba[i * 4 + 3] / 255 : (s.alpha[i] / 255) * (out.mask[i] / 255);
-      const ma = out.misreg ? out.misreg[i] / 255 : 0;
-      const ta = out.toner[i] / 255;
-      const sa = out.stray ? out.stray[i] / 255 : 0;
-      const pa = out.light ? out.light[i] / 255 : 0;
-      for (let ch = 0; ch < 3; ch++) {
-        let v = bg;
-        v = v * (1 - ma) + v * misC[ch] / 255 * ma;               // Versatz (multiplizieren, unten)
-        const base = s.rgba[i * 4 + ch];
-        v = v * (1 - la) + base * la;                              // Ebene
-        if (docMode) {
-          v = v * (1 - ta) + inkC[ch] * ta;                        // Overlay: Toner …
-          v = v * (1 - pa) + paperC[ch] * pa;                      // … und Papier
-        } else {
-          const tk = ta * out.mask[i] / 255; // geclippt: Toner-Deckkraft × Ebenenmaske (Alpha steckt schon in ta)
-          let blended;
-          if (mode === "normal") blended = inkC[ch];
-          else if (mode === "linearBurn") blended = Math.max(0, v + inkC[ch] - 255);
-          else if (mode === "darken") blended = Math.min(v, inkC[ch]);
-          else if (mode === "colorBurn") blended = inkC[ch] <= 0 ? 0 : Math.max(0, 255 - (255 - v) * 255 / inkC[ch]);
-          else blended = v * inkC[ch] / 255;                       // multiply (+ overlay/softLight näherungsweise)
-          v = v * (1 - tk) + blended * tk;
-          v = v * (1 - sa) + avgC[ch] * sa;                        // Streu-Toner
-        }
-        rgb[i * 3 + ch] = v;
-      }
-    }
-  }
-  return rgb;
+// Kurzinfo, wie MS Printer das Dokument einschätzt
+function showDocInfo(info) {
+  if (!info || busy) return;
+  const dark = Math.round(info.darkShare * 100);
+  if (!params.autoAdapt) return;
+  if (dark > 60) setStatus(`Dokument ist überwiegend dunkel (${dark} %) – Fehler erscheinen als helle Fehlstellen.`);
+  else if (dark > 20) setStatus(`Gemischtes Dokument (${dark} % dunkel) – hell auf dunklen, dunkel auf hellen Flächen.`);
+  else setStatus(`Helles Dokument – Fehler erscheinen als Toner und Aussetzer.`);
 }
 
-// ---------------------------------------------------------------- Bild-Texturen (eigene Scans)
+function stripAlpha(rgba) {
+  const out = new Uint8Array(rgba.length / 4 * 3);
+  for (let i = 0, j = 0; i < rgba.length; i += 4, j += 3) { out[j] = rgba[i]; out[j + 1] = rgba[i + 1]; out[j + 2] = rgba[i + 2]; }
+  return out;
+}
+
+// ---------------------------------------------------------------- Eigene Scans
 
 const TEX_MAX = 2048;
-
 async function texFolder() {
   const data = await lfs.getDataFolder();
   try { return await data.getEntry("textures"); } catch (e) { return await data.createFolder("textures"); }
@@ -705,7 +588,6 @@ async function loadImageTextures() {
     }
   } catch (e) { console.log("Textur-Bibliothek nicht lesbar", e); }
 }
-
 async function importImageTextures() {
   if (busy) return;
   let files;
@@ -727,10 +609,8 @@ async function importImageTextures() {
         try {
           const W = Number(d.width), H = Number(d.height);
           const f = Math.min(1, TEX_MAX / Math.max(W, H));
-          const res = await imaging.getPixels({
-            documentID: d.id, colorSpace: "RGB", componentSize: 8,
-            targetSize: { width: Math.max(1, Math.round(W * f)), height: Math.max(1, Math.round(H * f)) },
-          });
+          const res = await imaging.getPixels({ documentID: d.id, colorSpace: "RGB", componentSize: 8,
+            targetSize: { width: Math.max(1, Math.round(W * f)), height: Math.max(1, Math.round(H * f)) } });
           const id = res.imageData;
           const raw = to8bit(await id.getData({ chunky: true }), id.componentSize || 8);
           const n = id.width * id.height, comps = id.components;
@@ -767,14 +647,13 @@ async function importImageTextures() {
     setStatus(`${added.length} Scan(s) hinzugefügt.`);
   }
 }
-
 async function deleteImageTexture(id) {
   const t = imageTextures.find((x) => x.id === id);
   if (!t) return;
   imageTextures = imageTextures.filter((x) => x.id !== id);
   try { await (await (await texFolder()).getEntry(t.file)).delete(); } catch (e) { /* egal */ }
   await saveTextureIndex();
-  if (params.texture === id) params.texture = "toner";
+  if (params.texture === id) params.texture = "copygrain";
   if (params.texture2 === id) params.texture2 = "";
   buildTextureGrid(); buildTexture2Select(); syncUI(); changed();
   setStatus(`Scan „${t.name}“ gelöscht.`);
@@ -782,102 +661,63 @@ async function deleteImageTexture(id) {
 
 // ---------------------------------------------------------------- Anwenden / Entfernen
 
-async function deleteGenerated(doc, layer) {
-  const names = Object.values(SUFFIX).map((s) => layer.name + s);
-  for (const l of allLayers(doc.layers).filter((x) => names.indexOf(x.name) >= 0)) await l.delete();
+// Berechnet die Ebenen-Inhalte für das ganze Dokument (ohne bestehende MS-Printer-Gruppe)
+async function computeForDocument(ctx, doc, p) {
+  const b = docBounds(doc);
+  const c = await readComposite(ctx, doc, b, null);
+  const cov = Core.coverageFromRGBA(c.raw, c.comps, c.w * c.h);
+  const luma = Core.lumaFromRGBA(c.raw, c.comps, c.w * c.h);
+  const { sampler, cdf } = Core.buildPipeline(p, b, texData(p.texture), texData(p.texture2));
+  const out = Core.computeOverlay({ width: c.w, height: c.h, originX: 0, originY: 0, pxScale: 1, bounds: b, params: p, sampler, cdf, coverage: cov, luma });
+  return { out, w: c.w, h: c.h };
 }
 
-async function applyToLayer(doc, layer, p) {
-  if (layer.isBackgroundLayer) throw new Error("Hintergrundebene – bitte erst in normale Ebene umwandeln oder Ziel „Ganzes Dokument“ nutzen");
-  if (layer.allLocked) throw new Error("Ebene ist gesperrt");
-  const b = layerBounds(layer, doc, p);
-  if (b.right - b.left <= 0 || b.bottom - b.top <= 0) throw new Error("Ebene ist leer");
-
-  await deleteGenerated(doc, layer);
-  await selectLayer(layer.id);
-  const hadMask = await hasUserMask(layer.id);
-  if (hadMask && await maskEnabled(layer.id)) await setMaskEnabled(layer.id, false);
-  const res = await imaging.getPixels({ documentID: doc.id, layerID: layer.id, sourceBounds: b, colorSpace: "RGB", componentSize: 8 });
-  if (hadMask) await setMaskEnabled(layer.id, true);
-  const id = res.imageData;
-  const w = id.width, h = id.height, comps = id.components;
-  const raw = to8bit(await id.getData({ chunky: true }), id.componentSize || 8);
-  const alpha = extractAlpha(raw, comps, w * h);
-  const avg = averageColor(raw, comps, w * h);
-  id.dispose();
-  const sb = res.sourceBounds || b;
-
-  const { sampler, cdf } = Core.buildPipeline(p, sb, texData(p.texture), texData(p.texture2));
-  const out = Core.computePrint({ alpha, width: w, height: h, originX: sb.left, originY: sb.top, pxScale: 1, bounds: sb, params: p, sampler, cdf });
-
-  // Aussetzer -> Ebenenmaske
-  if (!hadMask) {
-    await batchPlay([{
-      _obj: "make", new: { _class: "channel" },
-      at: { _ref: "channel", _enum: "channel", _value: "mask" },
-      using: { _enum: "userMaskEnabled", _value: "revealAll" },
-    }], {});
+function solidRGBA(n, rgb, alpha) {
+  const buf = new Uint8Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    buf[i * 4] = rgb.r; buf[i * 4 + 1] = rgb.g; buf[i * 4 + 2] = rgb.b; buf[i * 4 + 3] = alpha ? alpha[i] : 255;
   }
-  const maskData = await imaging.createImageDataFromBuffer(fromBuf8(out.mask, doc), {
-    width: w, height: h, components: 1, chunky: true, colorSpace: "Grayscale", colorProfile: "Gray Gamma 2.2",
+  return buf;
+}
+function grayRGBA(gray) {
+  const buf = new Uint8Array(gray.length * 4);
+  for (let i = 0; i < gray.length; i++) { buf[i * 4] = buf[i * 4 + 1] = buf[i * 4 + 2] = gray[i]; buf[i * 4 + 3] = 255; }
+  return buf;
+}
+
+async function makeTextureLayer(doc, name, buf, w, h, mode, opacity) {
+  await batchPlay([{ _obj: "make", _target: [{ _ref: "layer" }], using: { _obj: "layer", name } }], {});
+  const layer = doc.activeLayers[0];
+  const d = await imaging.createImageDataFromBuffer(fromBuf8(buf, doc), {
+    width: w, height: h, components: 4, chunky: true, colorSpace: "RGB", colorProfile: "sRGB IEC61966-2.1",
   });
   try {
-    await imaging.putLayerMask({ documentID: doc.id, layerID: layer.id, imageData: maskData, targetBounds: { left: sb.left, top: sb.top }, replace: false });
+    await imaging.putPixels({ documentID: doc.id, layerID: layer.id, imageData: d, targetBounds: { left: 0, top: 0 } });
   } finally {
-    maskData.dispose();
+    d.dispose();
   }
-
-  // Reihenfolge (oben -> unten): Streutoner, Toner (geclippt), Ebene, Versatz
-  const made = {};
-  if (out.misreg && anyNonZero(out.misreg)) {
-    const l = await makeLayerAbove(doc, layer.id, layer.name + SUFFIX.misreg);
-    await putRGBA(doc, l.id, solidRGBA(out.misreg, hexToRgb(p.misregColor)), w, h, sb.left, sb.top);
-    await setBlendMode("multiply");
-    await batchPlay([{ _obj: "move", _target: TARGET, to: { _ref: "layer", _enum: "ordinal", _value: "previous" } }], {});
-    made.misreg = true;
-  }
-  if (out.stray && anyNonZero(out.stray)) {
-    const l = await makeLayerAbove(doc, layer.id, layer.name + SUFFIX.stray);
-    await putRGBA(doc, l.id, solidRGBA(out.stray, avg), w, h, sb.left, sb.top);
-    made.stray = true;
-  }
-  if (anyNonZero(out.toner)) {
-    const l = await makeLayerAbove(doc, layer.id, layer.name + SUFFIX.toner);
-    await putRGBA(doc, l.id, solidRGBA(out.toner, hexToRgb(p.inkColor)), w, h, sb.left, sb.top);
-    await batchPlay([{ _obj: "groupEvent", _target: TARGET }], {});
-    await setBlendMode(p.blendMode);
-    made.toner = true;
-  }
-
-  let dropped = 0, tonered = 0, opaque = 0;
-  for (let i = 0; i < w * h; i++) if (alpha[i] > 0) { opaque++; if (out.mask[i] < 128) dropped++; if (out.toner[i] > 64) tonered++; }
-  log("  Ebene", { name: layer.name, id: layer.id, bounds: sb, aussetzerProzent: opaque ? Math.round(dropped / opaque * 100) : 0,
-    tonerProzent: opaque ? Math.round(tonered / opaque * 100) : 0, ebenen: made });
-  lastApplied.set(doc.id + ":" + layer.id, effectiveParams(p));
+  await batchPlay([{ _obj: "set", _target: TARGET, to: { _obj: "layer", mode: { _enum: "blendMode", _value: mode }, opacity: { _unit: "percentUnit", _value: opacity } } }], {});
+  return layer.id;
 }
 
-async function applyDocument(doc, p) {
-  const b = docBounds(doc);
-  const w = b.right, h = b.bottom;
-  for (const l of allLayers(doc.layers).filter((x) => x.name === OVERLAY_NAME)) await l.delete();
-  const alpha = new Uint8Array(w * h).fill(255);
-  const { sampler, cdf } = Core.buildPipeline(p, b, texData(p.texture), texData(p.texture2));
-  const out = Core.computePrint({ alpha, width: w, height: h, originX: 0, originY: 0, pxScale: 1, bounds: b, params: p, sampler, cdf });
-  const ink = hexToRgb(p.inkColor), paper = hexToRgb(p.paperColor);
-  const buf = new Uint8Array(w * h * 4);
-  for (let i = 0; i < w * h; i++) {
-    const t = out.toner[i], l = out.light[i];
-    const c = t >= l ? ink : paper;
-    buf[i * 4] = c.r; buf[i * 4 + 1] = c.g; buf[i * 4 + 2] = c.b; buf[i * 4 + 3] = Math.max(t, l);
+async function applyToDocument(ctx, doc, p) {
+  await deleteGroups(doc);
+  const { out, w, h } = await computeForDocument(ctx, doc, p);
+  const n = w * h;
+  const made = [];
+  // ganz oben anfangen; jede neue Ebene landet über der vorherigen
+  if (doc.layers[0]) await selectLayer(doc.layers[0].id);
+  if (p.paperTone > 0) made.push(await makeTextureLayer(doc, L.tone, solidRGBA(n, hexToRgb(p.paperToneColor)), w, h, "multiply", p.paperTone));
+  if (out.paper) made.push(await makeTextureLayer(doc, L.paper, grayRGBA(out.paper), w, h, "softLight", 100));
+  if (p.tonerEnabled && anyNonZero(out.toner)) made.push(await makeTextureLayer(doc, L.toner, solidRGBA(n, hexToRgb(p.inkColor), out.toner), w, h, p.tonerBlend, p.tonerOpacity));
+  if (p.dropoutEnabled && anyNonZero(out.light)) made.push(await makeTextureLayer(doc, L.dropout, solidRGBA(n, hexToRgb(p.paperColor), out.light), w, h, p.dropoutBlend, p.dropoutOpacity));
+  if (made.length) {
+    await selectLayers(made);
+    await batchPlay([{ _obj: "make", _target: [{ _ref: "layerSection" }], from: { _ref: "layer", _enum: "ordinal", _value: "targetEnum" }, name: GROUP_NAME }], {});
+    await batchPlay([{ _obj: "set", _target: TARGET, to: { _obj: "layer", name: GROUP_NAME, opacity: { _unit: "percentUnit", _value: p.strength } } }], {});
   }
-  // Ganz oben anlegen
-  const top = doc.layers[0];
-  if (top) await selectLayer(top.id);
-  await batchPlay([{ _obj: "make", _target: [{ _ref: "layer" }], using: { _obj: "layer", name: OVERLAY_NAME } }], {});
-  const ol = doc.activeLayers[0];
-  await putRGBA(doc, ol.id, buf, w, h, 0, 0);
-  log("  Overlay", { breite: w, hoehe: h });
-  lastApplied.set(doc.id + ":doc", effectiveParams(p));
+  log("  Gruppe", { ebenen: made.length, breite: w, hoehe: h });
+  lastApplied.set(doc.id, effectiveParams(p));
 }
 
 let liveLast = null;
@@ -891,90 +731,47 @@ async function applyPrint(live) {
   if (busy) { if (live) livePending = true; return; }
   const doc = app.activeDocument;
   if (!doc) return setStatus("Kein Dokument geöffnet.", true);
-  const docMode = params.target === "document";
-  const layers = docMode ? [] : doc.activeLayers.slice();
-  if (!docMode && !layers.length) return setStatus("Keine Ebene ausgewählt.", true);
   busy = true;
-  setStatus(live ? "Live-Update…" : docMode ? "Erzeuge Overlay…" : `Wende an auf ${layers.length} Ebene(n)…`);
-  const ids = layers.map((l) => l.id);
-  const key = docMode ? "doc" : ids.join(",");
-  const errors = [];
-  let ok = 0;
+  setStatus(live ? "Live-Update…" : "Erzeuge Druck-Look…");
   const t0 = Date.now();
-  const replaceLast = live && liveLast && liveLast.docId === doc.id &&
-    liveLast.stateId !== null && liveLast.stateId === historyStateId(doc) && liveLast.key === key;
-  log(live ? "LIVE" : "ANWENDEN", { ziel: docMode ? "Dokument" : layers.map((l) => l.name), ersetztLetztenSchritt: !!replaceLast, params: effectiveParams(params) });
+  let error = null;
+  const replaceLast = live && liveLast && liveLast.docId === doc.id && liveLast.stateId !== null && liveLast.stateId === historyStateId(doc);
+  log(live ? "LIVE" : "ANWENDEN", { ersetztLetztenSchritt: !!replaceLast, params: effectiveParams(params) });
   try {
     await core.executeAsModal(async (ctx) => {
-      if (replaceLast) {
-        await batchPlay([{ _obj: "select", _target: [{ _ref: "historyState", _enum: "ordinal", _value: "previous" }] }], {});
-      }
+      if (replaceLast) await batchPlay([{ _obj: "select", _target: [{ _ref: "historyState", _enum: "ordinal", _value: "previous" }] }], {});
       const hid = await ctx.hostControl.suspendHistory({ documentID: doc.id, name: live ? HIST + " Live" : HIST });
-      try {
-        if (docMode) {
-          try { await applyDocument(doc, paramsFor(0)); ok++; } catch (e) { errors.push("Dokument: " + (e.message || e)); }
-        } else {
-          for (let i = 0; i < layers.length; i++) {
-            try { await applyToLayer(doc, layers[i], paramsFor(i)); ok++; }
-            catch (e) { errors.push(`${layers[i].name}: ${e.message || e}`); }
-          }
-          await selectLayers(ids);
-        }
-      } finally {
-        await ctx.hostControl.resumeHistory(hid);
-      }
+      try { await applyToDocument(ctx, doc, Object.assign({}, params)); }
+      finally { await ctx.hostControl.resumeHistory(hid); }
     }, { commandName: HIST + " anwenden" });
   } catch (e) {
-    errors.push(e.message || String(e));
+    error = e.message || String(e);
   }
-  liveLast = live && ok > 0 ? { docId: doc.id, stateId: historyStateId(doc), key } : null;
-  log("  Ergebnis", { ok, fehler: errors, ms: Date.now() - t0 });
+  liveLast = live && !error ? { docId: doc.id, stateId: historyStateId(doc) } : null;
+  log("  Ergebnis", { fehler: error, ms: Date.now() - t0 });
   ignoreEventsUntil = Date.now() + 600;
   busy = false;
   const secs = ((Date.now() - t0) / 1000).toFixed(1);
-  if (errors.length) setStatus(`${ok} ok, ${errors.length} Fehler – ${errors.join(" | ")}`, true);
-  else if (live) setStatus(`Live aktualisiert (${secs}s).`);
-  else setStatus(`Fertig in ${secs}s. Rückgängig mit ⌘Z.`);
-  if (livePending && $("liveCanvas").checked) {
-    livePending = false;
-    applyPrint(true);
-  }
+  if (error) setStatus("Fehler: " + error, true);
+  else setStatus(live ? `Live aktualisiert (${secs}s).` : `Fertig in ${secs}s – Gruppe „${GROUP_NAME}“ liegt oben. Rückgängig mit ⌘Z.`);
+  if (livePending && $("liveCanvas").checked) { livePending = false; applyPrint(true); }
 }
-const debouncedLive = debounce(() => applyPrint(true), 220);
+const debouncedLive = debounce(() => applyPrint(true), 250);
 
 async function removePrint() {
   if (busy) return;
   const doc = app.activeDocument;
   if (!doc) return setStatus("Kein Dokument geöffnet.", true);
-  const docMode = params.target === "document";
-  const layers = doc.activeLayers.slice();
-  if (!docMode && !layers.length) return setStatus("Keine Ebene ausgewählt.", true);
-  const ids = layers.map((l) => l.id);
   busy = true;
   try {
     await core.executeAsModal(async (ctx) => {
       const hid = await ctx.hostControl.suspendHistory({ documentID: doc.id, name: HIST + " entfernen" });
-      try {
-        if (docMode) {
-          for (const l of allLayers(doc.layers).filter((x) => x.name === OVERLAY_NAME)) await l.delete();
-        } else {
-          for (const layer of layers) {
-            await deleteGenerated(doc, layer);
-            if (await hasUserMask(layer.id)) {
-              await selectLayer(layer.id);
-              await batchPlay([{ _obj: "delete", _target: [{ _ref: "channel", _enum: "channel", _value: "mask" }] }], {});
-            }
-          }
-          await selectLayers(ids);
-        }
-      } finally {
-        await ctx.hostControl.resumeHistory(hid);
-      }
+      try { await deleteGroups(doc); }
+      finally { await ctx.hostControl.resumeHistory(hid); }
     }, { commandName: HIST + " entfernen" });
-    if (docMode) lastApplied.delete(doc.id + ":doc");
-    for (const id of ids) lastApplied.delete(doc.id + ":" + id);
-    log("ENTFERNEN", { ziel: docMode ? "Dokument" : layers.map((l) => l.name) });
-    setStatus(docMode ? "Overlay-Ebene entfernt." : "Maske(n) und Druck-Ebenen entfernt.");
+    lastApplied.delete(doc.id);
+    log("ENTFERNEN");
+    setStatus(`Gruppe „${GROUP_NAME}“ entfernt.`);
   } catch (e) {
     setStatus("Fehler beim Entfernen: " + (e.message || e), true);
   }
@@ -982,128 +779,98 @@ async function removePrint() {
 }
 
 // ---------------------------------------------------------------- Prüfen
-// Vergleicht Maske und Toner-Ebene in Photoshop mit dem Sollwert für die aktuellen Einstellungen.
 
-async function readAlphaOf(doc, layerId, sb, w, h) {
-  const r = await imaging.getPixels({ documentID: doc.id, layerID: layerId, sourceBounds: sb, colorSpace: "RGB", componentSize: 8 });
+async function readLayerAlpha(doc, layerId, w, h) {
+  const r = await imaging.getPixels({ documentID: doc.id, layerID: layerId, colorSpace: "RGB", componentSize: 8 });
   const d = r.imageData;
   const raw = to8bit(await d.getData({ chunky: true }), d.componentSize || 8);
-  const rb = r.sourceBounds || sb;
-  const a = extractAlpha(raw, d.components, d.width * d.height);
+  const rb = r.sourceBounds || { left: 0, top: 0 };
   const out = new Uint8Array(w * h);
-  // in das Soll-Raster einsortieren (getPixels liefert nur den nicht-leeren Bereich)
+  const c = d.components;
   for (let y = 0; y < d.height; y++) for (let x = 0; x < d.width; x++) {
-    const tx = rb.left - sb.left + x, ty = rb.top - sb.top + y;
-    if (tx >= 0 && ty >= 0 && tx < w && ty < h) out[ty * w + tx] = a[y * d.width + x];
+    const tx = rb.left + x, ty = rb.top + y;
+    if (tx >= 0 && ty >= 0 && tx < w && ty < h) out[ty * w + tx] = c >= 4 ? raw[(y * d.width + x) * c + 3] : 255;
   }
   d.dispose();
   return out;
 }
-function compare(exp, act, alpha) {
-  let big = 0, n = 0;
-  for (let i = 0; i < exp.length; i++) {
-    if (alpha && alpha[i] < 128) continue;
-    n++;
-    if (Math.abs(exp[i] - act[i]) > 100) big++;
-  }
-  return n ? Math.round(big / n * 1000) / 10 : 0;
+function compare(exp, act) {
+  let big = 0;
+  for (let i = 0; i < exp.length; i++) if (Math.abs(exp[i] - act[i]) > 100) big++;
+  return Math.round(big / exp.length * 1000) / 10;
 }
 
-async function verifyLayer(ctx, doc, layer, p) {
-  const r = { ebene: layer.name };
-  const b = layerBounds(layer, doc, p);
-  if (b.right - b.left <= 0 || b.bottom - b.top <= 0) { r.fehler = "leer"; return r; }
-  const px = await readLayerUnmasked(ctx, doc, layer, b);
-  const pd = px.imageData;
-  const raw = to8bit(await pd.getData({ chunky: true }), pd.componentSize || 8);
-  const alpha = extractAlpha(raw, pd.components, pd.width * pd.height);
-  const sb = px.sourceBounds || b;
-  const w = pd.width, h = pd.height;
-  pd.dispose();
-  const { sampler, cdf } = Core.buildPipeline(p, sb, texData(p.texture), texData(p.texture2));
-  const exp = Core.computePrint({ alpha, width: w, height: h, originX: sb.left, originY: sb.top, pxScale: 1, bounds: sb, params: p, sampler, cdf });
-  const all = allLayers(doc.layers);
-  const find = (suffix) => all.filter((l) => l.name === layer.name + suffix);
-  const want = { toner: anyNonZero(exp.toner), stray: !!(exp.stray && anyNonZero(exp.stray)), misreg: !!(exp.misreg && anyNonZero(exp.misreg)) };
-  r.ebenen = {};
-  for (const k of Object.keys(SUFFIX)) {
-    const n = find(SUFFIX[k]).length;
-    r.ebenen[k] = n;
-    if ((n > 0) !== want[k] || n > 1) r.fehler = (r.fehler ? r.fehler + ", " : "") + `${k}-Ebene ${n ? "zu viel" : "fehlt"}`;
+async function verifyDocument(ctx, doc, p) {
+  const r = {};
+  const groups = findGroups(doc);
+  r.gruppen = groups.length;
+  const { out, w, h } = await computeForDocument(ctx, doc, p);
+  const want = {};
+  if (p.paperTone > 0) want[L.tone] = { mode: "multiply", opacity: p.paperTone };
+  if (out.paper) want[L.paper] = { mode: "softLight", opacity: 100 };
+  if (p.tonerEnabled && anyNonZero(out.toner)) want[L.toner] = { mode: p.tonerBlend, opacity: p.tonerOpacity, alpha: out.toner };
+  if (p.dropoutEnabled && anyNonZero(out.light)) want[L.dropout] = { mode: p.dropoutBlend, opacity: p.dropoutOpacity, alpha: out.light };
+  const names = Object.keys(want);
+  const fail = (m) => { r.fehler = (r.fehler ? r.fehler + ", " : "") + m; };
+  const loose = strayLayers(doc).length;
+  if (loose) fail(`${loose} lose MS-Printer-Ebene(n) außerhalb der Gruppe`);
+  if (!names.length) { if (groups.length) fail("Gruppe sollte fehlen"); r.ok = !r.fehler; return r; }
+  if (groups.length !== 1) { fail(groups.length ? "mehrere Gruppen" : "Gruppe fehlt"); r.ok = false; return r; }
+  const g = groups[0];
+  if (doc.layers[0].id !== g.id) fail("Gruppe nicht ganz oben");
+  if (Math.abs(Number(g.opacity) - p.strength) > 1) fail(`Gruppen-Deckkraft ${g.opacity} statt ${p.strength}`);
+  const kids = g.layers.map((l) => l.name);
+  r.ebenen = kids;
+  const order = [L.dropout, L.toner, L.paper, L.tone].filter((n) => want[n]);
+  if (JSON.stringify(kids) !== JSON.stringify(order)) fail("Ebenen/Reihenfolge falsch");
+  for (const l of g.layers) {
+    const wnt = want[l.name];
+    if (!wnt) continue;
+    const mode = String(l.blendMode || "").replace(/^BlendMode\./, "");
+    if (mode.toLowerCase() !== wnt.mode.toLowerCase()) fail(`${l.name}: Mischmodus ${mode} statt ${wnt.mode}`);
+    if (Math.abs(Number(l.opacity) - wnt.opacity) > 1) fail(`${l.name}: Deckkraft ${l.opacity} statt ${wnt.opacity}`);
+    if (wnt.alpha) {
+      const dev = compare(wnt.alpha, await readLayerAlpha(doc, l.id, w, h));
+      r[l.name + "Abweichung"] = dev;
+      if (dev > 1) fail(`${l.name}: ${dev}% Pixel anders`);
+    }
   }
-  if (!(await hasUserMask(layer.id))) { r.fehler = (r.fehler ? r.fehler + ", " : "") + "keine Maske"; return r; }
-  const mr = await imaging.getLayerMask({ documentID: doc.id, layerID: layer.id, kind: "user", sourceBounds: sb, targetSize: { width: w, height: h } });
-  const md = mr.imageData;
-  const mraw = to8bit(await md.getData({ chunky: true }), md.componentSize || 8);
-  md.dispose();
-  r.maskeAbweichung = compare(exp.mask, mraw, alpha);
-  const tl = find(SUFFIX.toner)[0];
-  if (tl) r.tonerAbweichung = compare(exp.toner, await readAlphaOf(doc, tl.id, sb, w, h), alpha);
-  // Versatz liegt direkt unter, Toner direkt über der Ebene?
-  const siblings = (layer.parent ? layer.parent.layers : doc.layers);
-  const idx = siblings.findIndex((l) => l.id === layer.id);
-  if (tl && !(idx > 0 && siblings[idx - 1].id === tl.id)) r.fehler = (r.fehler ? r.fehler + ", " : "") + "Toner-Ebene nicht direkt darüber";
-  const ml = find(SUFFIX.misreg)[0];
-  if (ml && !(siblings[idx + 1] && siblings[idx + 1].id === ml.id)) r.fehler = (r.fehler ? r.fehler + ", " : "") + "Versatz-Ebene nicht direkt darunter";
-  r.ok = !r.fehler && r.maskeAbweichung <= 1 && (r.tonerAbweichung === undefined || r.tonerAbweichung <= 1);
+  r.ok = !r.fehler;
   return r;
 }
 
-async function verifyDocument(doc, p) {
-  const r = { ebene: OVERLAY_NAME };
-  const ols = allLayers(doc.layers).filter((x) => x.name === OVERLAY_NAME);
-  r.anzahl = ols.length;
-  if (ols.length !== 1) { r.fehler = ols.length ? "mehrere Overlays" : "Overlay fehlt"; return r; }
-  if (doc.layers[0].id !== ols[0].id) r.fehler = "Overlay nicht ganz oben";
-  const b = docBounds(doc);
-  const w = b.right, h = b.bottom;
-  const { sampler, cdf } = Core.buildPipeline(p, b, texData(p.texture), texData(p.texture2));
-  const exp = Core.computePrint({ alpha: new Uint8Array(w * h).fill(255), width: w, height: h, originX: 0, originY: 0, pxScale: 1, bounds: b, params: p, sampler, cdf });
-  const e = new Uint8Array(w * h);
-  for (let i = 0; i < e.length; i++) e[i] = Math.max(exp.toner[i], exp.light[i]);
-  r.abweichung = compare(e, await readAlphaOf(doc, ols[0].id, b, w, h), null);
-  r.ok = !r.fehler && r.abweichung <= 1;
+async function verifyNow(doc) {
+  let r;
+  await core.executeAsModal(async (ctx) => { r = await verifyDocument(ctx, doc, Object.assign({}, params)); }, { commandName: HIST + " prüfen" });
   return r;
-}
-
-async function verifyAllNow(doc, layers, docMode) {
-  const out = [];
-  await core.executeAsModal(async (ctx) => {
-    if (docMode) out.push(await verifyDocument(doc, paramsFor(0)));
-    else for (let i = 0; i < layers.length; i++) out.push(await verifyLayer(ctx, doc, layers[i], paramsFor(i)));
-  }, { commandName: HIST + " prüfen" });
-  return out;
 }
 
 async function verifyCanvas() {
   if (busy) return;
   const doc = app.activeDocument;
   if (!doc) return setStatus("Kein Dokument geöffnet.", true);
-  const docMode = params.target === "document";
-  const layers = doc.activeLayers.slice();
-  if (!docMode && !layers.length) return setStatus("Keine Ebene ausgewählt.", true);
   busy = true;
-  let report = [];
-  try { report = await verifyAllNow(doc, layers, docMode); }
-  catch (e) { report.push({ fehler: e.message || String(e) }); }
+  let r;
+  try { r = await verifyNow(doc); } catch (e) { r = { ok: false, fehler: e.message || String(e) }; }
   busy = false;
   ignoreEventsUntil = Date.now() + 600;
-  log("PRÜFEN", report);
-  const bad = report.filter((r) => !r.ok);
-  if (!bad.length) setStatus("✓ Canvas entspricht den aktuellen Einstellungen.");
-  else setStatus("✗ " + bad.map((r) => `${r.ebene || ""}: ${r.fehler || ""} ${r.maskeAbweichung !== undefined ? "Maske " + r.maskeAbweichung + "%" : ""} ${r.tonerAbweichung !== undefined ? "Toner " + r.tonerAbweichung + "%" : ""}${r.abweichung !== undefined ? r.abweichung + "% anders" : ""}`).join(" | ") + " (Details im Log)", true);
+  log("PRÜFEN", r);
+  if (r.ok) setStatus("✓ Dokument entspricht den aktuellen Einstellungen.");
+  else setStatus("✗ " + r.fehler + " (Details im Log)", true);
 }
 
 // ---------------------------------------------------------------- Selbsttest
 
-function testShapePixels(w, h) {
+function testArtwork(w, h) {
   const buf = new Uint8Array(w * h * 4);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const inBar = x >= 40 && x < 360 && y >= 40 && y < 190;
-    const dx = x - 520, dy = y - 115, d = Math.sqrt(dx * dx + dy * dy);
     const i = (y * w + x) * 4;
-    if (inBar) { buf[i] = 210; buf[i + 1] = 40; buf[i + 2] = 60; buf[i + 3] = 255; }
-    else if (d < 85) { buf[i] = 30; buf[i + 1] = 70; buf[i + 2] = 190; buf[i + 3] = Math.round(255 * Math.min(1, 85 - d)); }
+    let c = null;
+    if (x >= 40 && x < 520 && y >= 40 && y < 200) c = [24, 24, 28];
+    const dx = x - 700, dy = y - 140, d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 110) c = [214, 40, 56];
+    if (x >= 40 && x < 860 && y >= 260 && y < 300) c = [40, 90, 200];
+    if (c) { buf[i] = c[0]; buf[i + 1] = c[1]; buf[i + 2] = c[2]; buf[i + 3] = 255; }
   }
   return buf;
 }
@@ -1117,104 +884,86 @@ async function runSelfTest() {
   const t0 = Date.now();
   let doc = null;
   log("SELBSTTEST START");
-  setStatus("Selbsttest läuft… (ca. 2 Minuten, bitte nichts anklicken)");
+  setStatus("Selbsttest läuft… (ca. 1–2 Minuten, bitte nichts anklicken)");
   try {
     await core.executeAsModal(async () => {
-      doc = await app.documents.add({ width: 680, height: 400, resolution: 72, mode: "RGBColorMode", fill: "white", name: "MS Printer Selbsttest" });
-      await batchPlay([{ _obj: "make", _target: [{ _ref: "layer" }], using: { _obj: "layer", name: "Test Pixel" } }], {});
-      const pl = doc.activeLayers[0];
-      const W = 680, H = 230;
-      const id = await imaging.createImageDataFromBuffer(testShapePixels(W, H), { width: W, height: H, components: 4, chunky: true, colorSpace: "RGB", colorProfile: "sRGB IEC61966-2.1" });
-      await imaging.putPixels({ documentID: doc.id, layerID: pl.id, imageData: id, targetBounds: { left: 0, top: 0 } });
+      doc = await app.documents.add({ width: 900, height: 520, resolution: 72, mode: "RGBColorMode", fill: "white", name: "MS Printer Selbsttest" });
+      await batchPlay([{ _obj: "make", _target: [{ _ref: "layer" }], using: { _obj: "layer", name: "Artwork" } }], {});
+      const al = doc.activeLayers[0];
+      const id = await imaging.createImageDataFromBuffer(testArtwork(900, 520), { width: 900, height: 520, components: 4, chunky: true, colorSpace: "RGB", colorProfile: "sRGB IEC61966-2.1" });
+      await imaging.putPixels({ documentID: doc.id, layerID: al.id, imageData: id, targetBounds: { left: 0, top: 0 } });
       id.dispose();
       try {
         await batchPlay([{
           _obj: "make", _target: [{ _ref: "textLayer" }],
-          using: {
-            _obj: "textLayer", textKey: "PRINT",
-            textClickPoint: { _obj: "paint", horizontal: { _unit: "percentUnit", _value: 5 }, vertical: { _unit: "percentUnit", _value: 93 } },
-            textStyleRange: [{ _obj: "textStyleRange", from: 0, to: 5, textStyle: { _obj: "textStyle", size: { _unit: "pointsUnit", _value: 130 }, color: { _obj: "RGBColor", red: 20, grain: 20, blue: 20 } } }],
-          },
+          using: { _obj: "textLayer", textKey: "PRINTED",
+            textClickPoint: { _obj: "paint", horizontal: { _unit: "percentUnit", _value: 5 }, vertical: { _unit: "percentUnit", _value: 92 } },
+            textStyleRange: [{ _obj: "textStyleRange", from: 0, to: 7, textStyle: { _obj: "textStyle", size: { _unit: "pointsUnit", _value: 120 }, color: { _obj: "RGBColor", red: 20, grain: 20, blue: 20 } } }] },
         }], {});
       } catch (e) { log("  Textebene nicht erstellbar", String(e.message || e)); }
     }, { commandName: HIST + " Selbsttest vorbereiten" });
 
-    const layers = allLayers(doc.layers).filter((l) => !l.isBackgroundLayer);
-    const ids = layers.map((l) => l.id);
-    const D = Object.assign({}, Core.DEFAULTS, { seed: 4242, varySeed: false, target: "layers" });
+    const D = Object.assign({}, Core.DEFAULTS, { seed: 4242 });
     const cases = [];
     for (const n of Core.NOISES) cases.push([`Druckfehler ${n.id}`, { texture: n.id }]);
-    for (const m of Core.MIX_MODES) cases.push([`2. Druckfehler ${m.id}`, { texture: "toner", texture2: "drumstreaks", texture2Mix: 70, texture2Mode: m.id }]);
+    for (const m of Core.MIX_MODES) cases.push([`2. Druckfehler ${m.id}`, { texture2: "drumstreaks", texture2Mix: 70, texture2Mode: m.id }]);
     for (const f of Core.FADE_STYLES) cases.push([`Verlauf ${f.id}`, { fadeAmount: 80, fadeStyle: f.id }]);
-    for (const bm of Core.BLEND_MODES) cases.push([`Mischmodus ${bm.id}`, { blendMode: bm.id }]);
-    cases.push(["Tauschen", { invert: true }]);
-    cases.push(["Winkel 30", { rotation: 30 }]);
-    cases.push(["Korngröße 4", { grainSize: 4, grain: 60 }]);
-    cases.push(["Nur Aussetzer", { toner: 0, grain: 0, dropout: 50 }]);
-    cases.push(["Intensität 0", { intensity: 0, edgeRoughness: 0 }]);
-    cases.push(["Alles 100", { intensity: 100, toner: 100, dropout: 0, grain: 100 }]);
-    cases.push(["Streu-Toner AN", { strayAmount: 80, strayDistance: 30 }]);
-    cases.push(["Versatz AN", { misregEnabled: true, misregX: 6, misregY: -3 }]);
-    cases.push(["Streu + Versatz", { strayAmount: 60, misregEnabled: true }]);
-    cases.push(["Streu + Versatz wieder AUS", { strayAmount: 0, misregEnabled: false }]);
-    cases.push(["2. Druckfehler wieder AUS", { texture2: "" }]);
+    for (const b of Core.BLEND_MODES) cases.push([`Toner-Modus ${b.id}`, { tonerBlend: b.id, tonerOpacity: 70 }]);
+    for (const b of Core.LIGHT_MODES) cases.push([`Aussetzer-Modus ${b.id}`, { dropoutBlend: b.id, dropoutOpacity: 60 }]);
+    cases.push(["Schmutz 0", { paperDirt: 0 }]);
+    cases.push(["Schmutz 100", { paperDirt: 100, toner: 50 }]);
+    cases.push(["Papierton + Struktur", { paperTone: 50, paperGrain: 80, paperToneColor: "#e8d9b5" }]);
+    cases.push(["Nur Toner", { dropoutEnabled: false, paperGrain: 0 }]);
+    cases.push(["Nur Aussetzer", { tonerEnabled: false, paperGrain: 0 }]);
+    cases.push(["Alles aus", { tonerEnabled: false, dropoutEnabled: false, paperGrain: 0, paperTone: 0 }]);
+    cases.push(["Wieder alles an", {}]);
+    cases.push(["Tauschen + Winkel", { invert: true, rotation: 30 }]);
+    cases.push(["Gesamt-Deckkraft 10", { strength: 10 }]);
+    cases.push(["Gesamt-Deckkraft 100", { strength: 100 }]);
+    cases.push(["Auto-Anpassung aus", { autoAdapt: false }]);
+    cases.push(["Korngröße 4", { grainSize: 4, grain: 70 }]);
 
     for (const [name, over] of cases) {
       params = Object.assign({}, D, over);
-      await selectLayersModal(ids);
       await applyPrint(false);
-      const r = await verifyAllNow(doc, layers, false);
-      results.push({ test: name, ok: r.every((x) => x.ok), details: r });
-      setStatus(`Selbsttest: ${results.length}/${cases.length + 7} – ${name}`);
+      const r = await verifyNow(doc);
+      results.push({ test: name, ok: r.ok, details: r });
+      setStatus(`Selbsttest: ${results.length}/${cases.length + 5} – ${name}`);
     }
 
-    // Live-Modus
+    // Live: mehrere Updates = ein Protokollschritt
     params = Object.assign({}, D, { texture: "riso" });
-    await selectLayersModal(ids);
     liveLast = null;
     const s0 = historyStateId(doc);
     await applyPrint(true);
-    params = Object.assign({}, D, { texture: "fax", misregEnabled: true });
+    params = Object.assign({}, D, { texture: "fax", paperTone: 30 });
     await applyPrint(true);
-    params = Object.assign({}, D, { texture: "halftone", misregEnabled: false });
+    params = Object.assign({}, D, { texture: "halftone" });
     await applyPrint(true);
     const states = doc.historyStates;
     const ai = states.findIndex((st) => st.id === historyStateId(doc));
     const before = ai > 0 ? states[ai - 1].id : null;
     results.push({ test: "Live: Protokoll zusammengefasst", ok: before === s0 && states[ai].name === HIST + " Live", details: { s0, before } });
-    const rl = await verifyAllNow(doc, layers, false);
-    results.push({ test: "Live: Canvas = letzte Einstellung", ok: rl.every((x) => x.ok), details: rl });
+    const rl = await verifyNow(doc);
+    results.push({ test: "Live: Dokument = letzte Einstellung", ok: rl.ok, details: rl });
 
-    // Rückgängig
+    // Rückgängig -> Stand des letzten Testfalls
     await core.executeAsModal(async () => {
       await batchPlay([{ _obj: "select", _target: [{ _ref: "historyState", _enum: "ordinal", _value: "previous" }] }], {});
     }, { commandName: HIST + " Test" });
     liveLast = null;
-    params = Object.assign({}, D, { texture2: "" });
-    const ru = await verifyAllNow(doc, layers, false);
-    results.push({ test: "Rückgängig stellt vorherigen Stand her", ok: ru.every((x) => x.ok), details: ru });
+    params = Object.assign({}, D, cases[cases.length - 1][1]);
+    const ru = await verifyNow(doc);
+    results.push({ test: "Rückgängig stellt vorherigen Stand her", ok: ru.ok, details: ru });
 
-    // Entfernen (Ebenen)
-    await selectLayersModal(ids);
-    await removePrint();
-    let removedOk = true;
-    await core.executeAsModal(async () => {
-      for (const l of layers) {
-        if (await hasUserMask(l.id)) removedOk = false;
-        for (const s of Object.values(SUFFIX)) if (allLayers(doc.layers).some((x) => x.name === l.name + s)) removedOk = false;
-      }
-    }, { commandName: HIST + " Test" });
-    results.push({ test: "Entfernen (Ebenen)", ok: removedOk });
+    // Doppelt anwenden darf keine zweite Gruppe erzeugen
+    await applyPrint(false);
+    await applyPrint(false);
+    results.push({ test: "Erneut anwenden ersetzt Gruppe", ok: findGroups(doc).length === 1 && strayLayers(doc).length === 0 });
 
-    // Dokument-Modus
-    params = Object.assign({}, D, { target: "document", texture: "copy3" });
-    await applyPrint(false);
-    params = Object.assign({}, D, { target: "document", texture: "newsprint", paperColor: "#f4ecd8" });
-    await applyPrint(false);
-    const rd = await verifyAllNow(doc, layers, true);
-    results.push({ test: "Dokument: Overlay ersetzt, ganz oben, korrekt", ok: rd.every((x) => x.ok), details: rd });
     await removePrint();
-    results.push({ test: "Entfernen (Dokument)", ok: !allLayers(doc.layers).some((x) => x.name === OVERLAY_NAME) });
+    const rest = doc.layers.map((l) => l.name);
+    results.push({ test: "Entfernen hinterlässt nichts", ok: findGroups(doc).length === 0 && strayLayers(doc).length === 0 && rest.length === 3, details: rest });
   } catch (e) {
     results.push({ test: "Abbruch", ok: false, details: String(e && e.stack || e) });
   }
@@ -1229,30 +978,18 @@ async function runSelfTest() {
   refreshPreviewSource();
 }
 
-async function selectLayersModal(ids) {
-  await core.executeAsModal(async () => { await selectLayers(ids); }, { commandName: HIST + " Test" });
-}
-
 // ---------------------------------------------------------------- Start
 
 let ignoreEventsUntil = 0;
 const onPsEvent = debounce(() => {
   if (busy || Date.now() < ignoreEventsUntil) return;
   refreshPreviewSource();
-}, 350);
-
-// Menüpunkt Zusatzmodule › MS Printer › Selbsttest ausführen
-try {
-  require("uxp").entrypoints.setup({
-    panels: { printerPanel: { show() { /* Inhalt kommt aus index.html */ } } },
-    commands: { selfTest: { run() { return runSelfTest(); } } },
-  });
-} catch (e) { console.log("Einstiegspunkte nicht registrierbar", e); }
+}, 400);
 
 async function init() {
   log("START", { ps: app.version });
   await loadImageTextures();
-  if (String(params.texture).startsWith("img:") && !texData(params.texture)) params.texture = "toner";
+  if (String(params.texture).startsWith("img:") && !texData(params.texture)) params.texture = "copygrain";
   if (String(params.texture2).startsWith("img:") && !texData(params.texture2)) params.texture2 = "";
   buildSliders();
   buildSelects();

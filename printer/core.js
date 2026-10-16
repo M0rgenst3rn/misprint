@@ -260,38 +260,42 @@ const NOISE_BY_ID = {};
 for (const n of NOISES) NOISE_BY_ID[n.id] = n;
 
 const DEFAULTS = {
-  target: "layers",         // "layers" | "document"
-  texture: "toner",
+  // Druckfehler-Textur
+  texture: "copygrain",
   scale: 100,
   rotation: 0,
   invert: false,
   grainSize: 1.5,
-  intensity: 75,
-  toner: 25,
-  dropout: 20,
-  grain: 20,
-  softness: 15,
-  edgeRoughness: 1.5,
-  strayAmount: 0,
-  strayDistance: 20,
-  inkColor: "#161616",
-  inkOpacity: 85,
-  blendMode: "multiply",
-  paperColor: "#ffffff",
-  misregEnabled: false,
-  misregX: 4,
-  misregY: 2,
-  misregColor: "#00a0e0",
-  misregOpacity: 70,
-  fadeAmount: 0,
-  fadeStyle: "top",
   texture2: "",
   texture2Scale: 100,
   texture2Mix: 50,
   texture2Mode: "blend",
   texture2Invert: false,
+  // Ebene "Toner" (dunkle Flecken)
+  tonerEnabled: true,
+  toner: 25,
+  tonerOpacity: 85,
+  inkColor: "#161616",
+  tonerBlend: "multiply",
+  // Ebene "Aussetzer" (Papier scheint durch)
+  dropoutEnabled: true,
+  dropout: 20,
+  dropoutOpacity: 100,
+  paperColor: "#ffffff",
+  dropoutBlend: "normal",
+  // gemeinsam
+  grain: 20,
+  softness: 15,
+  paperDirt: 30,
+  autoAdapt: true,          // Fehler an Dokumentfarben anpassen (dunkle Flächen -> helle Fehlstellen)
+  strength: 35,             // Deckkraft der ganzen Gruppe "MS Printer"
+  fadeAmount: 0,
+  fadeStyle: "frame",
+  // Papier
+  paperGrain: 30,
+  paperTone: 0,
+  paperToneColor: "#efe4cc",
   seed: 2024,
-  varySeed: true,
 };
 
 const FADE_STYLES = [
@@ -320,6 +324,14 @@ const BLEND_MODES = [
   { id: "normal", name: "Normal" },
   { id: "overlay", name: "Ineinanderkopieren" },
   { id: "softLight", name: "Weiches Licht" },
+];
+
+const LIGHT_MODES = [
+  { id: "normal", name: "Normal" },
+  { id: "screen", name: "Negativ multiplizieren" },
+  { id: "lighten", name: "Aufhellen" },
+  { id: "softLight", name: "Weiches Licht" },
+  { id: "overlay", name: "Ineinanderkopieren" },
 ];
 
 // ---------------------------------------------------------------- Sampler + Verteilung
@@ -412,39 +424,6 @@ function buildPipeline(p, bounds, tex1, tex2) {
   return { sampler, cdf: buildCDF(sampler, bounds) };
 }
 
-// Chamfer-Distanz jedes Pixels mit inside(alpha) zur nächsten Kante (in Sample-Pixeln).
-function distanceTransform(alpha, w, h, outside) {
-  const d = new Float32Array(w * h);
-  const D = Math.SQRT2;
-  for (let i = 0; i < d.length; i++) d[i] = (outside ? alpha[i] < 128 : alpha[i] >= 128) ? 1e6 : 0;
-  const edge = outside ? 1e6 : 0; // außerhalb der Bounds: für Innen-Distanz "außen", für Außen-Distanz "weit weg"
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = y * w + x;
-      if (d[i] === 0) continue;
-      let m = d[i];
-      m = Math.min(m, (x > 0 ? d[i - 1] : edge) + 1);
-      m = Math.min(m, (y > 0 ? d[i - w] : edge) + 1);
-      m = Math.min(m, (x > 0 && y > 0 ? d[i - w - 1] : edge) + D);
-      m = Math.min(m, (x < w - 1 && y > 0 ? d[i - w + 1] : edge) + D);
-      d[i] = m;
-    }
-  }
-  for (let y = h - 1; y >= 0; y--) {
-    for (let x = w - 1; x >= 0; x--) {
-      const i = y * w + x;
-      if (d[i] === 0) continue;
-      let m = d[i];
-      m = Math.min(m, (x < w - 1 ? d[i + 1] : edge) + 1);
-      m = Math.min(m, (y < h - 1 ? d[i + w] : edge) + 1);
-      m = Math.min(m, (x < w - 1 && y < h - 1 ? d[i + w + 1] : edge) + D);
-      m = Math.min(m, (x > 0 && y < h - 1 ? d[i + w - 1] : edge) + D);
-      d[i] = m;
-    }
-  }
-  return d;
-}
-
 function makeFade(p, b, seed) {
   const bw = Math.max(1, b.right - b.left), bh = Math.max(1, b.bottom - b.top);
   const fu = Math.max(bw, bh) / 3;
@@ -468,52 +447,46 @@ function makeFade(p, b, seed) {
   };
 }
 
-// ---------------------------------------------------------------- Effekt-Berechnung
-// alpha: Uint8Array (w*h) der Ebene (Dokument-Modus: komplett 255).
-// Liefert:
-//   mask  – Ebenenmaske (255 = sichtbar), Aussetzer + Kantenrauheit
-//   toner – Deckkraft der Toner-Ebene (0–255)
-//   light – Deckkraft der Papierfarbe (nur Dokument-Modus)
-//   stray – Deckkraft des Streu-Toners außerhalb der Form (oder null)
-//   misreg – Deckkraft der Versatz-Ebene (oder null)
-function computePrint(o) {
-  const { alpha, width: w, height: h, originX, originY, bounds } = o;
+// ---------------------------------------------------------------- Overlay-Berechnung
+// Berechnet die Textur-Ebenen für das GANZE Dokument (oder einen verkleinerten Ausschnitt für
+// die Vorschau; originX/Y + pxScale bilden Pixel auf Dokument-Koordinaten ab).
+//   coverage – optional: Farbdeckung des Dokuments (0 = Papier/weiß, 255 = voll bedruckt).
+//              Steuert, wie viel Toner-Schmutz auf Papierflächen landet und dass Aussetzer nur
+//              auf bedruckten Stellen sichtbar werden.
+// Liefert (je w*h Byte):
+//   toner – Deckkraft der Toner-Ebene     light – Deckkraft der Aussetzer-Ebene
+//   paper – Grauwert der Papierstruktur (128 = neutral für "Weiches Licht") oder null
+function computeOverlay(o) {
+  const { width: w, height: h, originX, originY, bounds, coverage, luma } = o;
   const pxScale = o.pxScale || 1;
   const p = Object.assign({}, DEFAULTS, o.params);
-  const docMode = p.target === "document";
   const seed = p.seed | 0;
   let sampler = o.sampler, cdf = o.cdf;
   if (!sampler || !cdf) ({ sampler, cdf } = buildPipeline(p, bounds, o.customTex, o.customTex2));
-  const dist = docMode ? null : distanceTransform(alpha, w, h, false);
   const fade = makeFade(p, bounds, seed);
 
-  const I = p.intensity / 100;
-  const tonerAmt = p.toner / 100, dropAmt = p.dropout / 100, grainAmt = p.grain / 100;
+  const tonerAmt = p.tonerEnabled ? p.toner / 100 : 0;
+  const dropAmt = p.dropoutEnabled ? p.dropout / 100 : 0;
+  const grainAmt = p.grain / 100;
   const soft = 0.004 + (p.softness / 100) * 0.2;
-  const softPx = 0.6 + (p.softness / 100) * 2.5;
-  const rough = docMode ? 0 : p.edgeRoughness;
-  const roughUnit = 3 + rough * 1.5;
   const fadeAmt = p.fadeAmount / 100;
   const gs = Math.max(0.5, p.grainSize);
-  const inkA = p.inkOpacity / 100;
+  const dirt = p.paperDirt / 100;
+  const pg = p.paperGrain / 100;
+  const auto = !!p.autoAdapt;
 
-  const mask = new Uint8Array(w * h);
   const toner = new Uint8Array(w * h);
-  const light = docMode ? new Uint8Array(w * h) : null;
-  const tArr = new Float32Array(w * h); // gleichverteilter Wert, für Streu-Toner wiederverwendet
+  const light = new Uint8Array(w * h);
+  const paper = pg > 0 ? new Uint8Array(w * h) : null;
 
   for (let y = 0; y < h; y++) {
     const yd = originY + (y + 0.5) * pxScale;
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
-      const a = alpha[i];
       const xd = originX + (x + 0.5) * pxScale;
-      const t = lookupCDF(cdf, sampler(xd, yd));
-      tArr[i] = t;
-      if (a === 0) { mask[i] = 255; continue; }
       const F = fadeAmt > 0 ? 1 - fadeAmt * (1 - fade(xd, yd)) : 1;
-      const k = I * F;
-      const drop = dropAmt * k, dark = tonerAmt * k;
+      const t = lookupCDF(cdf, sampler(xd, yd));
+      const drop = dropAmt * F, dark = tonerAmt * F;
 
       let keep = 1, darkness = 0;
       if (drop > 0) {
@@ -524,70 +497,107 @@ function computePrint(o) {
         const thr = -soft + dark * (1 + 2 * soft);
         darkness = 1 - smooth(thr - soft, thr + soft, t);
       }
-      // Pixel-Korn (unabhängig von Scale): helle und dunkle Einzelpunkte
       if (grainAmt > 0) {
         const g = rnd(Math.floor(xd / gs), Math.floor(yd / gs), seed + 77) * 2 - 1;
-        const G = grainAmt * k;
-        if (g > 0.4) keep *= 1 - G * (g - 0.4) / 0.6;
-        else if (g < -0.4) darkness = Math.max(darkness, G * (-g - 0.4) / 0.6);
+        const G = grainAmt * F;
+        if (g > 0.4 && dropAmt > 0) keep *= 1 - G * (g - 0.4) / 0.6;
+        else if (g < -0.4 && tonerAmt > 0) darkness = Math.max(darkness, G * (-g - 0.4) / 0.6);
       }
-      if (rough > 0 && keep > 0) {
-        const dd = (dist[i] || a / 255) * pxScale;
-        const n = 0.5 * (0.5 + 0.5 * fbm(xd / roughUnit, yd / roughUnit, 3, seed + 555)) + 0.5 * t;
-        const r = rough * F * (0.15 + 1.7 * clamp01((n - 0.3) * 2.5));
-        keep *= smooth(r - softPx, r + softPx, dd);
+      const cov = coverage ? coverage[i] / 255 : 1;
+      let tonerA = darkness * (cov + (1 - cov) * dirt);
+      let lightA = (1 - keep) * Math.min(1, cov * 1.5);
+      if (auto && luma) {
+        // Dunkle Flecken sieht man nur auf hellen Flächen. Auf dunklen Flächen erscheint derselbe
+        // Fehler als helle Stelle (fehlender Toner, Staub) – so wirkt der Look auf jedem Motiv.
+        const lum = luma[i] / 255;
+        tonerA *= smooth(0.06, 0.4, lum);
+        lightA = Math.max(lightA, darkness * (1 - smooth(0.12, 0.5, lum)) * 0.6);
+        lightA *= 1 - 0.4 * (1 - smooth(0.08, 0.45, lum)); // große schwarze Flächen nicht vergrauen
       }
-      if (docMode) {
-        mask[i] = 255;
-        toner[i] = (darkness * inkA * 255 + 0.5) | 0;
-        light[i] = ((1 - keep) * 255 + 0.5) | 0;
-      } else {
-        mask[i] = (keep * 255 + 0.5) | 0;
-        toner[i] = (a * darkness * inkA + 0.5) | 0;
+      toner[i] = (tonerA * 255 + 0.5) | 0;
+      light[i] = (lightA * 255 + 0.5) | 0;
+      if (paper) {
+        const v = 0.6 * fbm(xd / 40, yd / 40, 4, seed + 900) + 0.4 * perlin(xd / 3, yd / 3, seed + 901);
+        paper[i] = Math.max(0, Math.min(255, Math.round(128 + v * 127 * pg * 1.6)));
       }
     }
   }
+  return { toner, light, paper };
+}
 
-  // Streu-Toner: kleine Punkte außerhalb der Form, nach außen seltener werdend
-  let stray = null;
-  if (!docMode && p.strayAmount > 0 && p.strayDistance > 0) {
-    stray = new Uint8Array(w * h);
-    const outD = distanceTransform(alpha, w, h, true);
-    const R = p.strayDistance;
-    const S = p.strayAmount / 100 * I;
-    for (let y = 0; y < h; y++) {
-      const yd = originY + (y + 0.5) * pxScale;
-      for (let x = 0; x < w; x++) {
-        const i = y * w + x;
-        if (alpha[i] >= 128) continue;
-        const d = outD[i] * pxScale;
-        if (d > R) continue;
-        const xd = originX + (x + 0.5) * pxScale;
-        const prob = S * Math.pow(1 - d / R, 2) * 0.35;
-        const v = 0.5 * tArr[i] + 0.5 * rnd(Math.floor(xd / gs), Math.floor(yd / gs), seed + 99);
-        if (v < prob) stray[i] = (255 * Math.min(1, (prob - v) / (prob * 0.5 + 1e-6)) * inkA) | 0;
-      }
-    }
+// Farbdeckung aus RGB(A)-Daten: 0 = weißes Papier, 255 = dunkel/bunt bedruckt
+function coverageFromRGBA(data, comps, n) {
+  const cov = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    const r = data[i * comps], g = data[i * comps + 1], b = data[i * comps + 2];
+    const a = comps >= 4 ? data[i * comps + 3] / 255 : 1;
+    // Abstand zu Weiß (Helligkeit + Sättigung), damit auch helle bunte Flächen als bedruckt zählen
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    const sat = Math.max(r, g, b) - Math.min(r, g, b);
+    cov[i] = Math.min(255, Math.round(((255 - lum) + sat * 0.6) * 1.4 * a));
   }
+  return cov;
+}
 
-  // Fehldruck-Versatz: verschobene Kopie der sichtbaren Form
-  let misreg = null;
-  if (!docMode && p.misregEnabled) {
-    misreg = new Uint8Array(w * h);
-    const dx = Math.round(p.misregX / pxScale), dy = Math.round(p.misregY / pxScale);
-    const op = p.misregOpacity / 100;
-    for (let y = 0; y < h; y++) {
-      const sy = y - dy;
-      if (sy < 0 || sy >= h) continue;
-      for (let x = 0; x < w; x++) {
-        const sx = x - dx;
-        if (sx < 0 || sx >= w) continue;
-        const j = sy * w + sx;
-        misreg[y * w + x] = (alpha[j] * mask[j] / 255 * op) | 0;
-      }
+// Helligkeit (0 = schwarz, 255 = weiß)
+function lumaFromRGBA(data, comps, n) {
+  const out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) out[i] = Math.round(0.299 * data[i * comps] + 0.587 * data[i * comps + 1] + 0.114 * data[i * comps + 2]);
+  return out;
+}
+
+// Kurze Analyse fürs Panel: wie viel des Dokuments ist dunkel / bedruckt?
+function analyzeDocument(luma, coverage) {
+  let dark = 0, ink = 0;
+  for (let i = 0; i < luma.length; i++) { if (luma[i] < 90) dark++; if (coverage[i] > 128) ink++; }
+  return { darkShare: dark / luma.length, inkShare: ink / luma.length };
+}
+
+// Photoshop-Mischmodi (Werte 0..1)
+function blend(mode, a, b) {
+  switch (mode) {
+    case "multiply": return a * b;
+    case "linearBurn": return Math.max(0, a + b - 1);
+    case "colorBurn": return b <= 0 ? 0 : Math.max(0, 1 - (1 - a) / b);
+    case "darken": return Math.min(a, b);
+    case "screen": return 1 - (1 - a) * (1 - b);
+    case "lighten": return Math.max(a, b);
+    case "overlay": return a < 0.5 ? 2 * a * b : 1 - 2 * (1 - a) * (1 - b);
+    case "softLight": return b < 0.5 ? a - (1 - 2 * b) * a * (1 - a) : a + (2 * b - 1) * ((a < 0.25 ? ((16 * a - 12) * a + 4) * a : Math.sqrt(a)) - a);
+    default: return b;
+  }
+}
+
+function hexRGB01(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || "").trim());
+  const n = m ? parseInt(m[1], 16) : 0;
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+}
+
+// Simuliert die Gruppe „MS Printer“ über dem Dokument (unten -> oben: Papierton, Papierstruktur,
+// Toner, Aussetzer) – für Vorschau, Tests und README-Bilder. Liefert RGB (3 Byte/Pixel).
+function compositeOverlay(src, comps, out, p) {
+  p = Object.assign({}, DEFAULTS, p);
+  const toneC = hexRGB01(p.paperToneColor), inkC = hexRGB01(p.inkColor), paperC = hexRGB01(p.paperColor);
+  const toneOp = p.paperTone / 100, tonerOp = p.tonerEnabled ? p.tonerOpacity / 100 : 0, dropOp = p.dropoutEnabled ? p.dropoutOpacity / 100 : 0;
+  const grpOp = p.strength / 100;
+  const n = src.length / comps;
+  const rgb = new Uint8Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const ta = out.toner[i] / 255 * tonerOp, la = out.light[i] / 255 * dropOp;
+    const pg = out.paper ? out.paper[i] / 255 : 0.5;
+    for (let ch = 0; ch < 3; ch++) {
+      let v = src[i * comps + ch] / 255;
+      if (toneOp > 0) v = v * (1 - toneOp) + blend("multiply", v, toneC[ch]) * toneOp;
+      if (out.paper) v = blend("softLight", v, pg);
+      if (ta > 0) v = v * (1 - ta) + blend(p.tonerBlend, v, inkC[ch]) * ta;
+      if (la > 0) v = v * (1 - la) + blend(p.dropoutBlend, v, paperC[ch]) * la;
+      // Deckkraft der ganzen Gruppe
+      v = src[i * comps + ch] / 255 * (1 - grpOp) + v * grpOp;
+      rgb[i * 3 + ch] = Math.max(0, Math.min(255, Math.round(v * 255)));
     }
   }
-  return { mask, toner, light, stray, misreg };
+  return rgb;
 }
 
 // Kachel-Vorschau: mittelgraue Fläche mit Toner (dunkel) und Aussetzern (weiß)
@@ -611,6 +621,6 @@ function renderThumb(texId, size, customTex) {
 
 module.exports = {
   NOISES: NOISES.map((n) => ({ id: n.id, name: n.name, group: n.group })),
-  FADE_STYLES, MIX_MODES, BLEND_MODES, DEFAULTS,
-  buildSampler, buildCDF, buildPipeline, computePrint, renderThumb,
+  FADE_STYLES, MIX_MODES, BLEND_MODES, LIGHT_MODES, DEFAULTS,
+  buildSampler, buildCDF, buildPipeline, computeOverlay, coverageFromRGBA, lumaFromRGBA, analyzeDocument, compositeOverlay, renderThumb,
 };

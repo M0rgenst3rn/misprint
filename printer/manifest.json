@@ -1,7 +1,7 @@
 {
   "id": "com.linus.msprinter",
   "name": "MS Printer",
-  "version": "1.0.1",
+  "version": "2.1.0",
   "main": "index.html",
   "manifestVersion": 5,
   "host": {
@@ -51,13 +51,6 @@
           ]
         }
       ]
-    },
-    {
-      "type": "command",
-      "id": "selfTest",
-      "label": {
-        "default": "Selbsttest ausführen"
-      }
     }
   ],
   "icons": [

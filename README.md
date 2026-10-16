@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <b>Druckerfehler, Toner-Rauschen und Kopierer-Look für Photoshop – auf einzelnen Ebenen oder als Overlay für das ganze Dokument.</b><br>
+  <b>Lässt dein ganzes Photoshop-Dokument aussehen wie gedruckt, kopiert oder gefaxt – ohne PNG-Texturen.</b><br>
   <sub>Photoshop 2023 (24.2) oder neuer · UXP-Panel · aus der Familie von <a href="https://github.com/M0rgenst3rn/ms-distress">MS Distress</a></sub>
 </p>
 
@@ -11,77 +11,69 @@
 
 ## Was ist MS Printer?
 
-MS Printer ist ein Panel-Plugin für Adobe Photoshop. Es lässt digitale Grafiken aussehen wie
-ausgedruckt, kopiert oder gefaxt. Dazu gehören Toner-Körnung, Streifen von der Druckertrommel,
-Inkjet-Banding, Riso-Flecken, Raster, Fax-Linien und vieles mehr.
+Digitale Grafiken wirken oft zu sauber und zu perfekt. **MS Printer** gibt ihnen den Look von echtem Druck:
+Toner-Flecken, Aussetzer, Papierstruktur und Rauschen. Alles wird prozedural berechnet, ganz ohne Bilddateien.
 
-Alles bleibt **nicht-destruktiv**:
+Mit einem Klick legt das Plugin oben ins Dokument eine Gruppe **„MS Printer“**. Darin liegen echte
+Textur-Ebenen, die du danach ganz normal in Photoshop anpassen kannst:
 
-- Helle Aussetzer landen in einer Ebenenmaske
-- Dunkler Toner liegt auf einer eigenen, geclippten Ebene
-- Streu-Toner und Fehldruck-Versatz bekommen eigene Ebenen
+```
+MS Printer   (Gruppe, Gesamt-Deckkraft 35 %)
+├─ Aussetzer        Papierfarbe, dort wo Toner fehlt
+├─ Toner            dunkle Flecken, Multiplizieren
+├─ Papierstruktur   Weiches Licht
+└─ Papierton        Multiplizieren
+```
 
-Mit ⌘Z oder „Entfernen“ ist alles wieder weg.
+**MS Printer schaut sich dein Dokument an**:
 
-<table>
-<tr>
-<td width="38%" valign="top"><img src="docs/images/panel.png" alt="Das MS-Printer-Panel in Photoshop"></td>
-<td valign="top">
+- **Auf hellen Flächen** erscheinen Fehler als Toner-Flecken und feiner Schmutz auf dem Papier.
+- **Auf dunklen Flächen** erscheinen sie als helle Fehlstellen, also fehlender Toner und Staub. So ist der Look auch auf schwarzen Motiven sichtbar.
+- **Aussetzer** entstehen nur dort, wo tatsächlich etwas gedruckt ist.
 
-### Highlights
+<p align="center"><img src="docs/images/vorher-nachher.png" alt="Vorher/Nachher auf hellem und dunklem Motiv"></p>
 
-- **43 eingebaute Druckfehler** in 7 Gruppen: Laser, Kopierer, Inkjet, Riso, Raster, Fax & Bon, Digital & Papier
-- **Eigene Scans laden**: PNG, JPG, TIF oder PSD. Sie werden dauerhaft als Kachel gespeichert
-- **Zwei Druckfehler kombinieren**: Überblenden, Addieren oder Maskieren
-- **Zwei Ziele**: ausgewählte Ebenen (Text, Formen, Smartobjekte) oder das **ganze Dokument** als Overlay-Ebene
-- **Getrennte Regler** für Toner (dunkel), Aussetzer (hell) und Körnung
-- **Streu-Toner** um die Form und **Fehldruck-Versatz** für den Riso- und Offset-Look
-- **Live auf Canvas** mit aktivierbarer Vorschau, als *ein* Protokollschritt
-- **14 Presets**: Fotokopie, Riso, Fax, Kassenbon, Nadeldrucker … plus eigene
-- **Selbsttest**: prüft alle Funktionen automatisch gegen das echte Photoshop-Ergebnis (79 Prüfungen)
+## Dezent als Standard
 
-</td>
-</tr>
-</table>
+Echte Druckfehler sind subtil. Darum startet die ganze Gruppe mit **35 % Deckkraft**. Mehr oder weniger
+stellst du direkt oben im Panel unter **Gesamt-Deckkraft** ein, oder später an der Gruppe in Photoshop.
 
-## Die Druckfehler
+<p align="center"><img src="docs/images/deckkraft.png" alt="Gesamt-Deckkraft 15, 35, 60 und 100 %"></p>
 
-Alle 43 Druckfehler sind prozedural, also mathematisch erzeugt. Darum sind sie in jeder Größe scharf und
-nahtlos. Über **Random Seed** gibt es unendlich viele Varianten.
+## 43 Druckfehler
+
+Alle Druckfehler sind prozedural erzeugt, in jeder Auflösung scharf und nahtlos. Über **Random Seed**
+gibt es unendlich viele Varianten. Für die Übersicht hier mit 75 % Deckkraft gerendert:
 
 <p align="center"><img src="docs/images/druckfehler.png" alt="Übersicht aller 43 Druckfehler"></p>
 
-## Ganzes Dokument
-
-Mit dem Ziel **„Ganzes Dokument“** legt MS Printer eine einzige Overlay-Ebene ganz oben ins Dokument.
-Darin liegen Toner in der Toner-Farbe und Aussetzer in der Papierfarbe. So wirkt die ganze Gestaltung wie
-einmal durch den Kopierer gelaufen.
-
-<p align="center"><img src="docs/images/dokument.png" alt="Ein Flyer vor und nach MS Printer im Dokument-Modus"></p>
+Eigene Scans lädst du über **„Scan laden…“** als
+zusätzliche Kacheln. Zwei Druckfehler lassen sich kombinieren: überblenden, addieren oder maskieren.
 
 ## Die Regler
 
 <p align="center"><img src="docs/images/regler.png" alt="Wirkung der einzelnen Regler"></p>
 
-| Regler | Was er macht |
-|---|---|
-| **Scale / Winkel** | Größe und Richtung des Druckfehlers, zum Beispiel Streifen waagerecht statt senkrecht |
-| **Korngröße** | Größe der einzelnen Körner in Pixeln |
-| **Intensität** | Gesamtstärke, wirkt auf alles gleichzeitig |
-| **Toner (dunkel)** | Anteil dunkler Toner-Flecken |
-| **Aussetzer (hell)** | Anteil heller Stellen, an denen das Papier durchscheint |
-| **Körnung** | Zusätzliches feines Pixelkorn, hell und dunkel |
-| **Weichheit** | Harte Druckpunkte bis weicher Übergang |
-| **Kantenrauheit** | Ausgefranste Außenkante |
-| **Streu-Toner / Abstand** | Verirrte Tonerpunkte rund um die Form |
-| **Toner-Farbe / Deckkraft / Mischmodus** | Farbe und Wirkung der Toner-Ebene (Multiplizieren, Linear nachbelichten …) |
-| **Papierfarbe** | Farbe der Aussetzer im Dokument-Modus |
-| **Fehldruck-Versatz** | Versetzte Kopie in einer zweiten Farbe (X, Y, Deckkraft) |
-| **Verlauf** | Lässt den Effekt verlaufen, zum Beispiel wenn der Toner nach unten ausläuft |
-| **Toner/Aussetzer tauschen** | Vertauscht dunkle und helle Bereiche |
+| Bereich | Regler | Was er macht |
+|---|---|---|
+| Oben | **Gesamt-Deckkraft** | Deckkraft der ganzen Gruppe, Standard 35 % |
+| Druckfehler | **Scale / Winkel / Korngröße** | Größe, Richtung und Korn des Druckfehlers |
+| Toner | **Menge / Deckkraft / Farbe / Mischmodus** | Dunkle Flecken |
+| Toner | **Schmutz auf Papier** | Wie viel Toner auf unbedruckten Flächen landet |
+| Aussetzer | **Menge / Deckkraft / Papierfarbe / Mischmodus** | Stellen, an denen Papier durchscheint |
+| Papier | **Struktur / Papierton** | Papierfaser-Struktur und Färbung, zum Beispiel vergilbt |
+| Struktur | **Körnung / Weichheit** | Feines Pixelkorn, harte oder weiche Druckpunkte |
+| Verlauf | **Stärke / Stil** | Fehler nehmen zum Rand, nach unten … zu |
+| | **An Dokumentfarben anpassen** | Helle Fehlstellen auf dunklen Flächen (Standard: an) |
 
-Wie beim MS Distress werden die Druckfehler intern gleichverteilt. **„Toner 20 %“ bedeutet bei jedem Typ
-ungefähr 20 % Fläche.** Wechselst du den Typ, bleibt die Stärke gleich.
+Die Vorschau zeigt das ganze Dokument oder einen **Ausschnitt in 1:1**, damit du das echte Korn siehst.
+Mit **Live** landen Änderungen sofort im Dokument, zusammengefasst als ein Protokollschritt.
+
+## Presets
+
+Fotokopie · Fotokopie 3. Generation · Fotokopie kaputt · Laserdrucker Toner leer · Laserdrucker Streifen ·
+Riso fleckig · Riso Korn · Zeitungsdruck · Siebdruck · Inkjet billig · Fax · Kassenbon · Nadeldrucker ·
+Altes Papier, dazu eigene Presets zum Speichern.
 
 ## Installation
 
@@ -102,24 +94,14 @@ ungefähr 20 % Fläche.** Wechselst du den Typ, bleibt die Stärke gleich.
 
 ## So benutzt du es
 
-1. Unter **Ziel** „Ausgewählte Ebenen“ oder „Ganzes Dokument“ wählen
-2. Einen Druckfehler anklicken und die Regler einstellen. Die Vorschau oben zeigt das Ergebnis sofort
-3. **Druck anwenden** klicken, oder **Live** einschalten
-4. Mit **Entfernen** sind Maske und Druck-Ebenen wieder weg
+1. Dokument öffnen und MS Printer starten
+2. Einen Druckfehler oder ein Preset wählen. Die Vorschau zeigt das Ergebnis sofort
+3. **Druck-Look anwenden** klicken, oder **Live** einschalten
+4. Feinschliff wahlweise im Panel oder direkt an der Gruppe „MS Printer“ in Photoshop
+5. **Entfernen** löscht die Gruppe wieder. Dein Artwork wird nie verändert
 
-**Ebenen, die MS Printer anlegt** (Beispiel für eine Ebene „Logo“):
-
-```
-Logo · Streutoner      Punkte um die Form (Farbe der Ebene)
-Logo · Toner           geclippt, Mischmodus wählbar
-Logo                   mit Ebenenmaske (Aussetzer)
-Logo · Versatz         versetzte Kopie, multipliziert
-```
-
-**Tipps**
-- Eigene Scans: dunkle Bereiche werden zu Toner, helle zu Aussetzern. Mit „tauschen“ geht es umgekehrt
-- **Prüfen** vergleicht den Canvas mit den aktuellen Einstellungen
-- Den **Selbsttest** gibt es auch im Menü *Zusatzmodule › MS Printer › Selbsttest ausführen*
+**Tipp:** Die Gruppe liegt immer ganz oben. Neue Inhalte, die du später hinzufügst, berücksichtigt sie
+erst, wenn du erneut auf „Anwenden“ klickst oder Live eingeschaltet ist.
 
 ## Projektstruktur
 
@@ -127,17 +109,19 @@ Logo · Versatz         versetzte Kopie, multipliziert
 printer/             Das Plugin (wird so in Photoshop geladen)
   manifest.json      Plugin-Beschreibung
   index.html         Panel-Oberfläche
-  main.js            Photoshop-Anbindung (Ebenen, Masken, Live, Prüfen, Selbsttest)
-  core.js            Druckfehler-Engine, reines JavaScript
+  main.js            Photoshop-Anbindung (Gruppe, Vorschau, Live, Prüfen, Selbsttest)
+  core.js            Druckfehler-Engine und Ebenen-Simulation, reines JavaScript
 install-mac.sh       Packt das Plugin (.ccx) und installiert es
 tools/               Test-Renderer und Generator für die Bilder dieser README
-docs/images/         Screenshots und Beispielbilder
+docs/images/         Beispielbilder
 ```
 
 ```bash
 node tools/render-test.js test.png      # alle Druckfehler ohne Photoshop rendern
 python3 tools/make-showcase.py          # Bilder dieser README neu erzeugen (braucht Pillow)
 ```
+
+Im Panel prüft **Selbsttest** über 80 Fälle automatisch gegen das echte Photoshop-Ergebnis.
 
 ---
 
