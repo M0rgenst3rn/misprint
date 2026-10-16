@@ -1,0 +1,80 @@
+{
+  "id": "com.linus.msprinter",
+  "name": "MS Printer",
+  "version": "1.0.1",
+  "main": "index.html",
+  "manifestVersion": 5,
+  "host": {
+    "app": "PS",
+    "minVersion": "24.2.0"
+  },
+  "requiredPermissions": {
+    "localFileSystem": "request"
+  },
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "printerPanel",
+      "label": {
+        "default": "MS Printer"
+      },
+      "minimumSize": {
+        "width": 260,
+        "height": 400
+      },
+      "maximumSize": {
+        "width": 900,
+        "height": 4000
+      },
+      "preferredDockedSize": {
+        "width": 320,
+        "height": 760
+      },
+      "preferredFloatingSize": {
+        "width": 340,
+        "height": 820
+      },
+      "icons": [
+        {
+          "width": 23,
+          "height": 23,
+          "path": "icons/icon.png",
+          "scale": [
+            1,
+            2
+          ],
+          "theme": [
+            "all"
+          ],
+          "species": [
+            "chrome"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "command",
+      "id": "selfTest",
+      "label": {
+        "default": "Selbsttest ausführen"
+      }
+    }
+  ],
+  "icons": [
+    {
+      "width": 48,
+      "height": 48,
+      "path": "icons/plugin.png",
+      "scale": [
+        1,
+        2
+      ],
+      "theme": [
+        "all"
+      ],
+      "species": [
+        "pluginList"
+      ]
+    }
+  ]
+}
