@@ -714,7 +714,10 @@ async function applyToDocument(ctx, doc, p) {
   if (made.length) {
     await selectLayers(made);
     await batchPlay([{ _obj: "make", _target: [{ _ref: "layerSection" }], from: { _ref: "layer", _enum: "ordinal", _value: "targetEnum" }, name: GROUP_NAME }], {});
-    await batchPlay([{ _obj: "set", _target: TARGET, to: { _obj: "layer", name: GROUP_NAME, opacity: { _unit: "percentUnit", _value: p.strength } } }], {});
+    await batchPlay([{ _obj: "set", _target: TARGET, to: { _obj: "layer", name: GROUP_NAME } }], {});
+    // Gesamt-Deckkraft direkt an der Gruppe setzen (per batchPlay auf eine frische Gruppe wird sie ignoriert)
+    const g = findGroups(doc)[0];
+    if (g) g.opacity = p.strength;
   }
   log("  Gruppe", { ebenen: made.length, breite: w, hoehe: h });
   lastApplied.set(doc.id, effectiveParams(p));

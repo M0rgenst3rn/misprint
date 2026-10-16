@@ -25,6 +25,25 @@ MS Printer   (Gruppe, Gesamt-Deckkraft 35 %)
 └─ Papierton        Multiplizieren
 ```
 
+<table>
+<tr>
+<td width="38%" valign="top"><img src="docs/images/panel.png" alt="Das MS-Printer-Panel in Photoshop"></td>
+<td valign="top">
+
+### Highlights
+
+- **Immer das ganze Dokument**: eine Gruppe, echte Ebenen mit Mischmodi
+- **43 Druckfehler** in 7 Gruppen: Laser, Kopierer, Inkjet, Riso, Raster, Fax & Bon, Digital & Papier
+- **Passt sich deinem Motiv an**: hell oder dunkel, bedruckt oder Papier
+- **Gesamt-Deckkraft** oben im Panel, Standard dezente 35 %
+- **Vorschau** des ganzen Dokuments oder im Detail 1:1, dazu **Live** im Dokument
+- **Eigene Scans laden**, zwei Druckfehler kombinieren, **14 Presets**
+- **Selbsttest**: 84 Prüfungen gegen das echte Photoshop-Ergebnis
+
+</td>
+</tr>
+</table>
+
 **MS Printer schaut sich dein Dokument an**:
 
 - **Auf hellen Flächen** erscheinen Fehler als Toner-Flecken und feiner Schmutz auf dem Papier.
@@ -121,7 +140,7 @@ node tools/render-test.js test.png      # alle Druckfehler ohne Photoshop render
 python3 tools/make-showcase.py          # Bilder dieser README neu erzeugen (braucht Pillow)
 ```
 
-Im Panel prüft **Selbsttest** über 80 Fälle automatisch gegen das echte Photoshop-Ergebnis.
+Im Panel prüft **Selbsttest** 84 Fälle automatisch gegen das echte Photoshop-Ergebnis.
 
 ---
 
