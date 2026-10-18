@@ -19,7 +19,7 @@ Mit einem Klick legt das Plugin oben ins Dokument eine Gruppe **„MS Printer“
 Textur-Ebenen, die du danach ganz normal in Photoshop anpassen kannst:
 
 ```
-MS Printer   (Gruppe, Gesamt-Deckkraft 35 %)
+MS Printer   (Gruppe, Deckkraft 35 %)
 ├─ Aussetzer        Papierfarbe, dort wo Toner fehlt
 ├─ Toner            dunkle Flecken, Multiplizieren
 ├─ Papierstruktur   Weiches Licht
@@ -36,8 +36,9 @@ MS Printer   (Gruppe, Gesamt-Deckkraft 35 %)
 - **Immer das ganze Dokument**: eine Gruppe, echte Ebenen mit Mischmodi
 - **43 Druckfehler** in 7 Gruppen: Laser, Kopierer, Inkjet, Riso, Raster, Fax & Bon, Digital & Papier
 - **Passt sich deinem Motiv an**: hell oder dunkel, bedruckt oder Papier
-- **Gesamt-Deckkraft** oben im Panel, Standard dezente 35 %
+- **Deckkraft** oben im Panel, Standard dezente 35 %
 - **Vorschau** des ganzen Dokuments oder im Detail 1:1, dazu **Live** im Dokument
+- **Aufgeräumtes Panel**: Druckfehler nach Kategorien (Laser, Kopierer, Inkjet …), aufklappbare Bereiche, eigene Farbpalette
 - **Eigene Scans laden**, zwei Druckfehler kombinieren, **14 Presets**
 - **Selbsttest**: 84 Prüfungen gegen das echte Photoshop-Ergebnis
 
@@ -56,13 +57,13 @@ MS Printer   (Gruppe, Gesamt-Deckkraft 35 %)
 ## Dezent als Standard
 
 Echte Druckfehler sind subtil. Darum startet die ganze Gruppe mit **35 % Deckkraft**. Mehr oder weniger
-stellst du direkt oben im Panel unter **Gesamt-Deckkraft** ein, oder später an der Gruppe in Photoshop.
+stellst du direkt oben im Panel unter **Deckkraft** ein, oder später an der Gruppe in Photoshop.
 
-<p align="center"><img src="docs/images/deckkraft.png" alt="Gesamt-Deckkraft 15, 35, 60 und 100 %"></p>
+<p align="center"><img src="docs/images/deckkraft.png" alt="Deckkraft 15, 35, 60 und 100 %"></p>
 
 ## 43 Druckfehler
 
-Alle Druckfehler sind prozedural erzeugt, in jeder Auflösung scharf und nahtlos. Über **Random Seed**
+Alle Druckfehler sind prozedural erzeugt, in jeder Auflösung scharf und nahtlos. Über **Zufall** (Würfeln)
 gibt es unendlich viele Varianten. Für die Übersicht hier mit 75 % Deckkraft gerendert:
 
 <p align="center"><img src="docs/images/druckfehler.png" alt="Übersicht aller 43 Druckfehler"></p>
@@ -76,8 +77,8 @@ zusätzliche Kacheln. Zwei Druckfehler lassen sich kombinieren: überblenden, ad
 
 | Bereich | Regler | Was er macht |
 |---|---|---|
-| Oben | **Gesamt-Deckkraft** | Deckkraft der ganzen Gruppe, Standard 35 % |
-| Druckfehler | **Scale / Winkel / Korngröße** | Größe, Richtung und Korn des Druckfehlers |
+| Oben | **Deckkraft** | Deckkraft der ganzen Gruppe, Standard 35 % |
+| Druckfehler | **Größe / Winkel / Korngröße** | Größe, Richtung und Korn des Druckfehlers |
 | Toner | **Menge / Deckkraft / Farbe / Mischmodus** | Dunkle Flecken |
 | Toner | **Schmutz auf Papier** | Wie viel Toner auf unbedruckten Flächen landet |
 | Aussetzer | **Menge / Deckkraft / Papierfarbe / Mischmodus** | Stellen, an denen Papier durchscheint |
@@ -116,7 +117,7 @@ Altes Papier, dazu eigene Presets zum Speichern.
 
 1. Dokument öffnen und MS Printer starten
 2. Einen Druckfehler oder ein Preset wählen. Die Vorschau zeigt das Ergebnis sofort
-3. **Druck-Look anwenden** klicken, oder **Live** einschalten
+3. **Anwenden** klicken, oder **Live** einschalten
 4. Feinschliff wahlweise im Panel oder direkt an der Gruppe „MS Printer“ in Photoshop
 5. **Entfernen** löscht die Gruppe wieder. Dein Artwork wird nie verändert
 

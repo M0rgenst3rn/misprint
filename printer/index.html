@@ -2,130 +2,149 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <link rel="stylesheet" href="ms-ui.css">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body class="printer">
+<body>
   <div class="layout">
   <div class="top">
     <div class="header">
-      <span class="title"><b>MS</b> PRINTER</span>
-      <span id="docName" class="layer-name">–</span>
+      <span class="brand"><span class="dot"></span><span class="brand-ms">MS</span><span class="brand-name">Printer</span></span>
+      <span id="docName" class="target-name">–</span>
     </div>
-    <div class="subtitle">Lässt das ganze Dokument aussehen wie gedruckt</div>
 
-    <div id="previewBox" class="preview-box tall">
+    <div id="previewBox" class="preview">
       <img id="preview" class="hidden">
       <div id="previewMsg" class="preview-msg">Dokument öffnen…</div>
-    </div>
-    <div class="seg" id="previewModeSeg">
-      <div class="seg-btn active" data-mode="fit">Ganzes Dokument</div>
-      <div class="seg-btn" data-mode="detail">Detail 1:1</div>
-    </div>
-    <div class="row between">
-      <label class="check"><input type="checkbox" id="previewOriginal"> Original zeigen</label>
-      <label class="check live" title="Änderungen direkt im Dokument anzeigen"><input type="checkbox" id="liveCanvas"> Live</label>
-      <sp-action-button size="s" quiet id="refreshPreview">↻</sp-action-button>
+      <div class="preview-tools">
+        <div class="seg mini" id="previewModeSeg">
+          <div class="seg-btn active" data-mode="fit" title="Ganzes Dokument">Ganz</div>
+          <div class="seg-btn" data-mode="detail" title="Ausschnitt in Originalgröße – so siehst du das echte Korn">1:1</div>
+        </div>
+        <div class="switch small" data-for="previewOriginal" data-kind="small" title="Vorschau ohne Druck-Look"><span class="knob"></span><span class="sw-label">Vorher</span></div>
+        <input type="checkbox" id="previewOriginal" class="hidden">
+      </div>
     </div>
 
-    <div class="strength-row" id="secStrengthTop"></div>
+    <div id="secStrengthTop" class="strength"></div>
     <div class="actions">
-      <sp-button size="s" variant="cta" id="apply">Druck-Look anwenden</sp-button>
-      <sp-button size="s" variant="secondary" id="remove">Entfernen</sp-button>
-      <sp-action-button size="s" quiet id="verify" title="Vergleicht das Dokument mit den aktuellen Einstellungen">Prüfen</sp-action-button>
+      <div class="btn primary" id="apply">Anwenden</div>
+      <div class="switch" data-for="liveCanvas" title="Änderungen sofort im Dokument zeigen"><span class="knob"></span><span class="sw-label">Live</span></div>
+      <input type="checkbox" id="liveCanvas" class="hidden">
+      <div class="btn ghost" id="remove" title="Druck-Look aus dem Dokument entfernen">Entfernen</div>
     </div>
     <div id="status" class="status"></div>
   </div>
 
   <div class="scroller">
   <div class="wrap">
-    <div class="section first">
-      <div class="section-title">Druckfehler <span id="texName" class="muted"></span></div>
-      <div id="texGrid" class="tex-grid"></div>
-      <div id="secTexture"></div>
-      <div class="row between">
-        <label class="check"><input type="checkbox" id="invert"> Toner/Aussetzer tauschen</label>
-        <sp-action-button size="s" quiet id="deleteImgTex" class="hidden">Scan löschen</sp-action-button>
-      </div>
-      <div class="sub">
-        <div class="row"><span class="ctl-label">2. Druckfehler</span><select id="texture2" class="grow"></select></div>
-        <div id="tex2Controls" class="hidden">
-          <div id="secTexture2"></div>
-          <div class="row two">
-            <select id="texture2Mode"></select>
-            <label class="check"><input type="checkbox" id="texture2Invert"> tauschen</label>
+
+    <div class="sec" data-sec="looks">
+      <div class="sec-head"><span class="sec-title">Looks</span><span id="lookName" class="sec-meta"></span><span class="chev c-open">–</span><span class="chev c-closed">+</span></div>
+      <div class="sec-body"><div id="lookList" class="seg wrap looks-chips"></div></div>
+    </div>
+
+    <div class="sec" data-sec="texture">
+      <div class="sec-head"><span class="sec-title">Druckfehler</span><span id="texName" class="sec-meta"></span><span class="chev c-open">–</span><span class="chev c-closed">+</span></div>
+      <div class="sec-body">
+        <div class="seg" id="slotSeg">
+          <div class="seg-btn" data-v="1">Haupt</div>
+          <div class="seg-btn" data-v="2">Zweiter</div>
+        </div>
+        <div class="seg wrap tex-groups" id="groupSeg"></div>
+        <div id="texGrid" class="tiles tex-grid"></div>
+        <div id="slot1">
+          <div id="secTexture"></div>
+          <div class="switch line" data-for="invert"><span class="knob"></span><span class="sw-label">Toner und Aussetzer tauschen</span></div>
+          <input type="checkbox" id="invert" class="hidden">
+          <div class="btn small ghost hidden" id="deleteImgTex">Scan löschen</div>
+        </div>
+        <div id="slot2">
+          <div id="tex2Empty" class="empty">Kein zweiter Druckfehler – wähle oben einen aus, um zwei zu mischen.</div>
+          <div id="tex2Controls">
+            <div id="secTexture2"></div>
+            <div class="field stack"><span class="field-label">Mischen</span><div class="seg" id="texture2ModeSeg"></div></div>
+            <div class="switch line" data-for="texture2Invert"><span class="knob"></span><span class="sw-label">Tauschen</span></div>
+            <input type="checkbox" id="texture2Invert" class="hidden">
+            <div class="btn small ghost" id="clearTex2">Zweiten entfernen</div>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="section">
-      <div class="section-title">Ebenen im Dokument</div>
-      <div class="hint">MS Printer legt oben eine Gruppe „MS Printer“ mit diesen Ebenen an. Mischmodus und Deckkraft lassen sich danach auch direkt in Photoshop ändern.</div>
-      <label class="check"><input type="checkbox" id="autoAdapt"> An Dokumentfarben anpassen <span class="muted">&nbsp;(auf dunklen Flächen helle Fehlstellen)</span></label>
+    <div class="sec" data-sec="layers">
+      <div class="sec-head"><span class="sec-title">Toner, Aussetzer, Papier</span><span class="sec-meta"></span><span class="chev c-open">–</span><span class="chev c-closed">+</span></div>
+      <div class="sec-body">
+        <div class="switch line" data-for="autoAdapt" title="Auf dunklen Flächen entstehen helle Fehlstellen"><span class="knob"></span><span class="sw-label">An Dokumentfarben anpassen</span></div>
+        <input type="checkbox" id="autoAdapt" class="hidden">
 
-      <div class="card" id="tonerCard">
-        <div class="card-head">
-          <label class="check grow"><input type="checkbox" id="tonerEnabled"> <b>Toner</b>&nbsp;<span class="muted">dunkle Flecken</span></label>
-          <div id="swatch-inkColor" class="swatch" title="Toner-Farbe"></div>
-          <input type="text" id="hex-inkColor" class="hex" maxlength="7">
+        <div class="group" id="tonerCard">
+          <div class="group-head">
+            <div class="switch line grow" data-for="tonerEnabled"><span class="knob"></span><span class="sw-label"><b>Toner</b> <span class="muted">dunkle Flecken</span></span></div>
+            <input type="checkbox" id="tonerEnabled" class="hidden">
+            <div id="swatch-inkColor" class="swatch" title="Toner-Farbe"></div>
+          </div>
+          <div class="group-body" id="tonerBody">
+            <div id="secToner"></div>
+            <div class="field stack"><span class="field-label">Mischmodus</span><div class="seg wrap" id="tonerBlendSeg"></div></div>
+          </div>
         </div>
-        <div id="secToner"></div>
-        <div class="row"><span class="ctl-label">Mischmodus</span><select id="tonerBlend" class="grow"></select></div>
-      </div>
 
-      <div class="card" id="dropoutCard">
-        <div class="card-head">
-          <label class="check grow"><input type="checkbox" id="dropoutEnabled"> <b>Aussetzer</b>&nbsp;<span class="muted">Papier scheint durch</span></label>
-          <div id="swatch-paperColor" class="swatch" title="Papierfarbe der Aussetzer"></div>
-          <input type="text" id="hex-paperColor" class="hex" maxlength="7">
+        <div class="group" id="dropoutCard">
+          <div class="group-head">
+            <div class="switch line grow" data-for="dropoutEnabled"><span class="knob"></span><span class="sw-label"><b>Aussetzer</b> <span class="muted">Papier scheint durch</span></span></div>
+            <input type="checkbox" id="dropoutEnabled" class="hidden">
+            <div id="swatch-paperColor" class="swatch" title="Papierfarbe der Aussetzer"></div>
+          </div>
+          <div class="group-body" id="dropoutBody">
+            <div id="secDropout"></div>
+            <div class="field stack"><span class="field-label">Mischmodus</span><div class="seg wrap" id="dropoutBlendSeg"></div></div>
+          </div>
         </div>
-        <div id="secDropout"></div>
-        <div class="row"><span class="ctl-label">Mischmodus</span><select id="dropoutBlend" class="grow"></select></div>
-      </div>
 
-      <div class="card">
-        <div class="card-head"><b>Papier</b></div>
-        <div id="secPaper"></div>
+        <div class="group">
+          <div class="group-head">
+            <span class="grow group-title">Papier</span>
+            <div id="swatch-paperToneColor" class="swatch" title="Papierton"></div>
+          </div>
+          <div id="secPaper"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec" data-sec="structure">
+      <div class="sec-head"><span class="sec-title">Struktur und Verlauf</span><span class="sec-meta">Körnung, Weichheit, Ausblenden</span><span class="chev c-open">–</span><span class="chev c-closed">+</span></div>
+      <div class="sec-body">
+        <div id="secStructure"></div>
+        <div id="secFade"></div>
+        <div id="fadeStyleRow" class="field stack sub"><span class="field-label">Richtung</span><div class="seg wrap" id="fadeStyleSeg"></div></div>
+      </div>
+    </div>
+
+    <div class="sec" data-sec="more">
+      <div class="sec-head"><span class="sec-title">Eigene Presets &amp; Werkzeuge</span><span class="sec-meta"></span><span class="chev c-open">–</span><span class="chev c-closed">+</span></div>
+      <div class="sec-body">
+        <div id="presetList" class="preset-list"></div>
         <div class="row">
-          <span class="ctl-label">Papierton-Farbe</span>
-          <div id="swatch-paperToneColor" class="swatch" title="Papierton"></div>
-          <input type="text" id="hex-paperToneColor" class="hex" maxlength="7">
+          <input type="text" id="presetName" class="grow" placeholder="Name für dieses Preset">
+          <div class="btn small" id="presetSave">Speichern</div>
         </div>
+        <div class="row">
+          <span class="field-label">Zufall</span>
+          <input type="text" id="seed" class="num">
+          <div class="btn small" id="dice" title="Neues Zufallsmuster">Würfeln</div>
+        </div>
+        <div class="row tools-row">
+          <div class="btn small ghost" id="resetAll">Zurücksetzen</div>
+          <div class="btn small ghost" id="verify" title="Vergleicht das Dokument mit den Einstellungen">Prüfen</div>
+          <div class="btn small ghost" id="selfTest" title="Legt ein Testdokument an und prüft alle Funktionen">Selbsttest</div>
+          <div class="btn small ghost" id="refreshPreview" title="Vorschau neu laden">Vorschau neu</div>
+        </div>
+        <div class="hint">MS Printer legt oben eine Gruppe „MS Printer“ mit echten Ebenen an: Toner, Aussetzer, Papierstruktur und Papierton. Mischmodus und Deckkraft lassen sich danach auch direkt in Photoshop ändern.</div>
       </div>
     </div>
 
-    <div class="section">
-      <div class="section-title">Struktur</div>
-      <div id="secStructure"></div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">Verlauf</div>
-      <div id="secFade"></div>
-      <select id="fadeStyle"></select>
-    </div>
-
-    <div class="section">
-      <div class="section-title">Random Seed</div>
-      <div class="row">
-        <input type="text" id="seed" class="seed">
-        <sp-action-button size="s" id="dice">🎲 Würfeln</sp-action-button>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">Presets</div>
-      <select id="presetSelect"></select>
-      <div class="row">
-        <input type="text" id="presetName" class="grow" placeholder="Eigenes Preset…">
-        <sp-action-button size="s" id="presetSave">Speichern</sp-action-button>
-        <sp-action-button size="s" quiet id="presetDelete">Löschen</sp-action-button>
-      </div>
-      <div class="row">
-        <sp-action-button size="s" quiet id="resetAll">Alles zurücksetzen</sp-action-button>
-        <sp-action-button size="s" quiet id="selfTest" title="Legt ein Testdokument an und prüft alle Funktionen">Selbsttest</sp-action-button>
-      </div>
-    </div>
+    <div id="colorPop" class="color-pop hidden"></div>
   </div>
   </div>
   </div>

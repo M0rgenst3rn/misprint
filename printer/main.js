@@ -7,6 +7,7 @@
 const { app, core, action, imaging } = require("photoshop");
 const { batchPlay } = action;
 const Core = require("./core.js");
+const UI = require("./ms-ui.js");
 const uxpStorage = require("uxp").storage;
 const lfs = uxpStorage.localFileSystem;
 
@@ -35,12 +36,12 @@ const BUILTIN_PRESETS = {
 };
 
 const SLIDERS = [
-  { key: "strength", label: "Gesamt-Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secStrengthTop" },
-  { key: "scale", label: "Scale", min: 10, max: 500, step: 1, unit: "%", parent: "secTexture" },
+  { key: "strength", label: "Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secStrengthTop" },
+  { key: "scale", label: "Größe", min: 10, max: 500, step: 1, unit: "%", parent: "secTexture" },
   { key: "rotation", label: "Winkel", min: 0, max: 360, step: 1, unit: "°", parent: "secTexture" },
   { key: "grainSize", label: "Korngröße", min: 0.5, max: 8, step: 0.5, unit: "px", parent: "secTexture" },
-  { key: "texture2Mix", label: "Mix", min: 0, max: 100, step: 1, unit: "%", parent: "secTexture2" },
-  { key: "texture2Scale", label: "Scale 2", min: 10, max: 500, step: 1, unit: "%", parent: "secTexture2" },
+  { key: "texture2Mix", label: "Anteil", min: 0, max: 100, step: 1, unit: "%", parent: "secTexture2" },
+  { key: "texture2Scale", label: "Größe", min: 10, max: 500, step: 1, unit: "%", parent: "secTexture2" },
   { key: "toner", label: "Menge", min: 0, max: 100, step: 1, unit: "%", parent: "secToner" },
   { key: "tonerOpacity", label: "Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secToner" },
   { key: "paperDirt", label: "Schmutz auf Papier", min: 0, max: 100, step: 1, unit: "%", parent: "secToner" },
@@ -195,36 +196,30 @@ function effectiveParams(p) {
 function diffParams(a, b) { return Object.keys(a).filter((k) => JSON.stringify(a[k]) !== JSON.stringify(b[k])); }
 const lastApplied = new Map(); // docId -> Parameter
 
-// ---------------------------------------------------------------- UI aufbauen
+// ---------------------------------------------------------------- Bedienelemente (Morgenstern-Design, ms-ui.js)
 
 function buildSliders() {
   for (const s of SLIDERS) {
-    const row = document.createElement("div");
-    row.className = "ctl";
-    row.innerHTML =
-      `<span class="ctl-label">${s.label}</span>` +
-      `<sp-slider class="ctl-range" min="${s.min}" max="${s.max}" step="${s.step}"></sp-slider>` +
-      `<input class="ctl-num" type="text"><span class="ctl-unit">${s.unit}</span>`;
-    $(s.parent).appendChild(row);
-    const range = row.querySelector(".ctl-range");
-    const num = row.querySelector(".ctl-num");
-    ctl[s.key] = { range, num, def: s };
-    const onRange = () => { params[s.key] = Number(range.value); num.value = String(params[s.key]); changed(); };
-    range.addEventListener("input", onRange);
-    range.addEventListener("change", onRange);
-    num.addEventListener("change", () => {
-      let v = parseFloat(String(num.value).replace(",", "."));
-      if (isNaN(v)) v = params[s.key];
-      params[s.key] = Math.max(s.min, Math.min(s.max, v));
-      syncUI(); changed();
+    ctl[s.key] = UI.slider($(s.parent), Object.assign({ def: Core.DEFAULTS[s.key] }, s), {
+      get: () => params[s.key],
+      set: (v) => { params[s.key] = v; changed(); },
+      done: () => syncUI(),
     });
   }
 }
 
+// Druckfehler: Kategorie wählen, dann Kachel. „Haupt“ setzt den ersten, „Zweiter“ den zweiten Druckfehler.
+const SCANS = "Eigene Scans";
+let texSlot = "1";
+let texGroup = null;
+const thumbCache = {};
+function groupOf(id) { const n = Core.NOISES.find((x) => x.id === id); return n ? n.group : (String(id).startsWith("img:") ? SCANS : null); }
+function texGroups() { return Core.NOISES.map((n) => n.group).filter((g, i, a) => a.indexOf(g) === i).concat([SCANS]); }
 function buildTextureGrid() {
+  if (!texGroup) texGroup = groupOf(params.texture) || Core.NOISES[0].group;
+  UI.seg($("groupSeg"), texGroups().map((g) => ({ id: g, name: g })), (g) => { texGroup = g; buildTextureGrid(); });
   const grid = $("texGrid");
   grid.innerHTML = "";
-  let group = null;
   const addTile = (t) => {
     const tile = document.createElement("div");
     tile.className = "tile";
@@ -232,27 +227,17 @@ function buildTextureGrid() {
     tile.title = t.name;
     tile.innerHTML = t.id === "__add"
       ? `<div class="ph add">+</div><div class="lbl">Scan laden…</div>`
-      : `<div class="ph"></div><div class="lbl">${t.name}</div>`;
+      : (thumbCache[t.id] ? `<img src="${thumbCache[t.id]}">` : `<div class="ph"></div>`) + `<div class="lbl">${UI.esc(t.name)}</div>`;
     tile.addEventListener("click", () => {
       if (t.id === "__add") return importImageTextures();
-      params.texture = t.id;
+      if (texSlot === "2") params.texture2 = t.id; else params.texture = t.id;
       syncUI(); changed();
     });
     grid.appendChild(tile);
   };
-  const addGroup = (name) => {
-    const g = document.createElement("div");
-    g.className = "grp";
-    g.textContent = name;
-    grid.appendChild(g);
-  };
-  for (const n of Core.NOISES) {
-    if (n.group !== group) { group = n.group; addGroup(group); }
-    addTile(n);
-  }
-  addGroup("Eigene Scans");
-  for (const t of imageTextures) addTile(t);
-  addTile({ id: "__add", name: "Scan laden" });
+  if (texGroup === SCANS) { for (const t of imageTextures) addTile(t); addTile({ id: "__add", name: "Scan laden" }); }
+  else for (const n of Core.NOISES) if (n.group === texGroup) addTile(n);
+  syncUI();
   renderThumbs();
 }
 
@@ -261,14 +246,16 @@ async function renderThumbs() {
   const size = 38;
   for (const t of Core.NOISES.concat(imageTextures)) {
     try {
-      const g = Core.renderThumb(t.id, size, texData(t.id));
-      const rgb = new Uint8Array(size * size * 3);
-      for (let i = 0; i < g.length; i++) { rgb[i * 3] = g[i]; rgb[i * 3 + 1] = g[i]; rgb[i * 3 + 2] = g[i]; }
-      const src = await encodeRGB(rgb, size, size);
+      if (!thumbCache[t.id]) {
+        const g = Core.renderThumb(t.id, size, texData(t.id));
+        const rgb = new Uint8Array(size * size * 3);
+        for (let i = 0; i < g.length; i++) { rgb[i * 3] = g[i]; rgb[i * 3 + 1] = g[i]; rgb[i * 3 + 2] = g[i]; }
+        thumbCache[t.id] = await encodeRGB(rgb, size, size);
+      }
       const tile = document.querySelector(`.tile[data-id="${t.id}"]`);
-      if (tile && src) {
+      if (tile && thumbCache[t.id] && tile.firstChild && tile.firstChild.tagName !== "IMG") {
         const img = document.createElement("img");
-        img.src = src;
+        img.src = thumbCache[t.id];
         tile.replaceChild(img, tile.firstChild);
       }
     } catch (e) { console.log("Thumb-Fehler", t.id, e); return; }
@@ -286,94 +273,106 @@ async function encodeRGB(rgb, w, h) {
   }
 }
 
+const pick = (key) => (v) => { params[key] = v; syncUI(); changed(); };
 function buildSelects() {
-  $("fadeStyle").innerHTML = Core.FADE_STYLES.map((f) => `<option value="${f.id}">${f.name}</option>`).join("");
-  $("texture2Mode").innerHTML = Core.MIX_MODES.map((f) => `<option value="${f.id}">${f.name}</option>`).join("");
-  $("tonerBlend").innerHTML = Core.BLEND_MODES.map((f) => `<option value="${f.id}">${f.name}</option>`).join("");
-  $("dropoutBlend").innerHTML = Core.LIGHT_MODES.map((f) => `<option value="${f.id}">${f.name}</option>`).join("");
-  buildTexture2Select();
+  UI.seg($("fadeStyleSeg"), Core.FADE_STYLES, pick("fadeStyle"));
+  UI.seg($("texture2ModeSeg"), Core.MIX_MODES.map((m) => ({ id: m.id, name: m.name.replace(/ \(.*\)$/, ""), tip: m.name })), pick("texture2Mode"));
+  UI.seg($("tonerBlendSeg"), Core.BLEND_MODES, pick("tonerBlend"));
+  UI.seg($("dropoutBlendSeg"), Core.LIGHT_MODES, pick("dropoutBlend"));
+  UI.seg($("slotSeg"), [{ id: "1", name: "Haupt" }, { id: "2", name: "Zweiter" }], (v) => {
+    texSlot = v;
+    const id = v === "2" ? params.texture2 : params.texture;
+    if (id && groupOf(id) !== texGroup) { texGroup = groupOf(id); buildTextureGrid(); } else syncUI();
+  });
+  UI.seg($("lookList"), Object.keys(BUILTIN_PRESETS).map((n) => ({ id: n, name: n })), (n) => {
+    params = Object.assign({}, Core.DEFAULTS, { seed: params.seed, strength: params.strength }, BUILTIN_PRESETS[n]);
+    texSlot = "1"; texGroup = groupOf(params.texture); buildTextureGrid(); changed();
+    setStatus(`Look „${n}“ – alle Regler bleiben frei einstellbar.`);
+  });
   rebuildPresetSelect();
 }
-
-function buildTexture2Select() {
-  let html = `<option value="">– keiner –</option>`;
-  html += Core.NOISES.map((t) => `<option value="${t.id}">${t.group}: ${t.name}</option>`).join("");
-  if (imageTextures.length) {
-    html += `<option value="" disabled>── Eigene Scans ──</option>`;
-    html += imageTextures.map((t) => `<option value="${t.id}">🖼 ${t.name}</option>`).join("");
+// eingebaute Looks: aktiv, solange alle Werte dazu passen
+function activeLook() {
+  for (const n of Object.keys(BUILTIN_PRESETS)) {
+    const ref = Object.assign({}, Core.DEFAULTS, BUILTIN_PRESETS[n]);
+    if (Object.keys(ref).every((k) => k === "seed" || k === "strength" || JSON.stringify(ref[k]) === JSON.stringify(params[k]))) return n;
   }
-  $("texture2").innerHTML = html;
-  $("texture2").value = params.texture2 || "";
+  return "";
 }
+function buildTexture2Select() { /* zweiter Druckfehler wird über die Kacheln gewählt */ }
 
+// eigene Presets als Liste: Klick lädt, × löscht
 function rebuildPresetSelect() {
-  const user = loadUserPresets();
-  let html = `<option value="">– Preset wählen –</option>`;
-  for (const n of Object.keys(BUILTIN_PRESETS)) html += `<option value="b:${n}">${n}</option>`;
-  const names = Object.keys(user);
-  if (names.length) {
-    html += `<option value="" disabled>── Eigene ──</option>`;
-    for (const n of names) html += `<option value="u:${n}">★ ${n}</option>`;
-  }
-  $("presetSelect").innerHTML = html;
-  $("presetSelect").value = "";
+  UI.presetList($("presetList"), Object.keys(loadUserPresets()),
+    (n) => { params = Object.assign({}, Core.DEFAULTS, { seed: params.seed }, loadUserPresets()[n]); texGroup = groupOf(params.texture); buildTextureGrid(); changed(); setStatus(`Preset „${n}“ geladen.`); },
+    (n) => { const u = loadUserPresets(); delete u[n]; saveUserPresets(u); rebuildPresetSelect(); setStatus(`Preset „${n}“ gelöscht.`); });
 }
 
 function syncUI() {
-  for (const key of Object.keys(ctl)) {
-    ctl[key].range.value = String(params[key]);
-    ctl[key].num.value = String(params[key]);
-  }
+  for (const key of Object.keys(ctl)) ctl[key].set(params[key]);
+  const cur = texSlot === "2" ? params.texture2 : params.texture;
   document.querySelectorAll(".tile").forEach((el) => {
-    el.className = el.dataset.id === params.texture ? "tile active" : "tile";
+    const id = el.dataset.id;
+    el.className = "tile" + (id === cur ? " active" : (texSlot === "1" && id === params.texture2) || (texSlot === "2" && id === params.texture) ? " second" : "");
   });
-  $("texName").textContent = "· " + texLabel(params.texture) + (params.texture2 ? " + " + texLabel(params.texture2) : "");
-  $("deleteImgTex").className = String(params.texture).startsWith("img:") ? "" : "hidden";
-  $("texture2").value = params.texture2 || "";
-  $("texture2Mode").value = params.texture2Mode;
-  $("texture2Invert").checked = !!params.texture2Invert;
+  UI.syncSeg($("slotSeg"), texSlot);
+  UI.syncSeg($("groupSeg"), texGroup);
+  $("texName").textContent = texLabel(params.texture) + (params.texture2 ? " + " + texLabel(params.texture2) : "");
+  $("slot1").className = texSlot === "1" ? "" : "hidden";
+  $("slot2").className = texSlot === "2" ? "" : "hidden";
+  $("deleteImgTex").className = String(params.texture).startsWith("img:") ? "btn small ghost" : "btn small ghost hidden";
+  $("tex2Empty").className = params.texture2 ? "empty hidden" : "empty";
   $("tex2Controls").className = params.texture2 ? "" : "hidden";
   $("invert").checked = !!params.invert;
+  $("texture2Invert").checked = !!params.texture2Invert;
   $("tonerEnabled").checked = !!params.tonerEnabled;
   $("dropoutEnabled").checked = !!params.dropoutEnabled;
   $("autoAdapt").checked = !!params.autoAdapt;
-  $("tonerCard").className = params.tonerEnabled ? "card" : "card off";
-  $("dropoutCard").className = params.dropoutEnabled ? "card" : "card off";
-  $("tonerBlend").value = params.tonerBlend;
-  $("dropoutBlend").value = params.dropoutBlend;
-  $("fadeStyle").value = params.fadeStyle;
-  for (const k of COLOR_KEYS) {
-    $("hex-" + k).value = params[k];
-    $("swatch-" + k).style.backgroundColor = params[k];
-  }
+  $("tonerCard").className = params.tonerEnabled ? "group" : "group off";
+  $("dropoutCard").className = params.dropoutEnabled ? "group" : "group off";
+  UI.syncSeg($("texture2ModeSeg"), params.texture2Mode);
+  UI.syncSeg($("tonerBlendSeg"), params.tonerBlend);
+  UI.syncSeg($("dropoutBlendSeg"), params.dropoutBlend);
+  UI.syncSeg($("fadeStyleSeg"), params.fadeStyle);
+  $("fadeStyleRow").className = params.fadeAmount > 0 ? "field stack sub" : "field stack sub hidden";
+  UI.syncSeg($("lookList"), activeLook());
+  $("lookName").textContent = activeLook();
+  for (const k of COLOR_KEYS) $("swatch-" + k).style.backgroundColor = params[k];
   $("seed").value = String(params.seed);
-  document.querySelectorAll(".seg-btn").forEach((el) => {
+  document.querySelectorAll("#previewModeSeg .seg-btn").forEach((el) => {
     el.className = el.dataset.mode === previewMode ? "seg-btn active" : "seg-btn";
   });
+  UI.syncSwitches();
 }
 
+const SEC_KEY = "msprinter.sections.v1";
+const SEC_DEFAULT = { looks: true, texture: true, layers: true, structure: false, more: false };
 function bindControls() {
-  const bindCheck = (id, key) => $(id).addEventListener("change", (e) => { params[key] = e.target.checked; syncUI(); changed(); });
-  const bindSelect = (id, key) => $(id).addEventListener("change", (e) => { params[key] = e.target.value; syncUI(); changed(); });
+  UI.sections(SEC_KEY, SEC_DEFAULT);
+  const bindCheck = (id, key) => UI.bindSwitch(id, (on) => { params[key] = on; syncUI(); changed(); });
   bindCheck("invert", "invert");
   bindCheck("texture2Invert", "texture2Invert");
   bindCheck("tonerEnabled", "tonerEnabled");
   bindCheck("dropoutEnabled", "dropoutEnabled");
   bindCheck("autoAdapt", "autoAdapt");
-  bindSelect("texture2", "texture2");
-  bindSelect("texture2Mode", "texture2Mode");
-  bindSelect("tonerBlend", "tonerBlend");
-  bindSelect("dropoutBlend", "dropoutBlend");
-  bindSelect("fadeStyle", "fadeStyle");
+  UI.bindSwitch("previewOriginal", () => renderPreview());
+  UI.bindSwitch("liveCanvas", (on) => {
+    liveLast = null;
+    if (on) applyPrint(true);
+    else setStatus("Live aus – der aktuelle Stand bleibt im Dokument.");
+  });
+  $("clearTex2").addEventListener("click", () => { params.texture2 = ""; syncUI(); changed(); });
   $("deleteImgTex").addEventListener("click", () => deleteImageTexture(params.texture));
   for (const k of COLOR_KEYS) {
-    $("hex-" + k).addEventListener("change", (e) => {
-      let v = String(e.target.value).trim();
-      if (v[0] !== "#") v = "#" + v;
-      if (/^#[0-9a-f]{6}$/i.test(v)) params[k] = v.toLowerCase();
-      syncUI(); changed();
+    $("swatch-" + k).addEventListener("click", (e) => {
+      e.stopPropagation();
+      UI.openColorPop({
+        pop: $("colorPop"), key: k, anchor: $("swatch-" + k).parentNode,
+        get: () => params[k],
+        set: (c) => { params[k] = c; syncUI(); changed(); },
+        exact: () => pickColor(k),
+      });
     });
-    $("swatch-" + k).addEventListener("click", () => pickColor(k));
   }
   $("seed").addEventListener("change", (e) => {
     const v = parseInt(e.target.value, 10);
@@ -381,26 +380,15 @@ function bindControls() {
     syncUI(); changed();
   });
   $("dice").addEventListener("click", () => { params.seed = Math.floor(Math.random() * 99999); syncUI(); changed(); });
-  document.querySelectorAll(".seg-btn").forEach((el) => el.addEventListener("click", () => {
+  document.querySelectorAll("#previewModeSeg .seg-btn").forEach((el) => el.addEventListener("click", () => {
     previewMode = el.dataset.mode;
     syncUI();
     refreshPreviewSource();
   }));
-  $("previewOriginal").addEventListener("change", () => renderPreview());
   $("refreshPreview").addEventListener("click", () => refreshPreviewSource());
-
-  $("presetSelect").addEventListener("change", (e) => {
-    const v = e.target.value;
-    if (!v) return;
-    const src = v.startsWith("b:") ? BUILTIN_PRESETS[v.slice(2)] : loadUserPresets()[v.slice(2)];
-    if (!src) return;
-    params = Object.assign({}, Core.DEFAULTS, { seed: params.seed }, src);
-    syncUI(); changed();
-    setStatus(`Preset „${v.slice(2)}“ geladen.`);
-  });
   $("presetSave").addEventListener("click", () => {
     const name = String($("presetName").value || "").trim();
-    if (!name) return setStatus("Bitte einen Namen für das Preset eingeben.", true);
+    if (!name) return setStatus("Gib dem Preset zuerst einen Namen.", true);
     const user = loadUserPresets();
     user[name] = Object.assign({}, params);
     saveUserPresets(user);
@@ -408,22 +396,7 @@ function bindControls() {
     $("presetName").value = "";
     setStatus(`Preset „${name}“ gespeichert.`);
   });
-  $("presetDelete").addEventListener("click", () => {
-    const v = $("presetSelect").value;
-    if (!v.startsWith("u:")) return setStatus("Wähle zuerst ein eigenes Preset (★) aus.", true);
-    const user = loadUserPresets();
-    delete user[v.slice(2)];
-    saveUserPresets(user);
-    rebuildPresetSelect();
-    setStatus("Preset gelöscht.");
-  });
   $("resetAll").addEventListener("click", () => { params = Object.assign({}, Core.DEFAULTS); syncUI(); changed(); });
-
-  $("liveCanvas").addEventListener("change", (e) => {
-    liveLast = null;
-    if (e.target.checked) applyPrint(true);
-    else setStatus("Live aus – der aktuelle Stand bleibt im Dokument.");
-  });
   $("apply").addEventListener("click", () => applyPrint(false));
   $("remove").addEventListener("click", removePrint);
   $("verify").addEventListener("click", verifyCanvas);
@@ -1002,6 +975,12 @@ async function init() {
   try {
     action.addNotificationListener(["select", "make", "delete", "open", "close", "set", "move", "transform", "placedLayerEditContents"], onPsEvent);
   } catch (e) { console.log("Event-Listener nicht verfügbar", e); }
+  // Entwickler-Hook: eine Datei „run-selftest“ im Datenordner startet den Selbsttest (und wird gelöscht)
+  let hookRunning = false;
+  setInterval(async () => {
+    if (busy || hookRunning) return;
+    try { const f = await (await lfs.getDataFolder()).getEntry("run-selftest"); await f.delete(); hookRunning = true; try { await runSelfTest(); } finally { hookRunning = false; } } catch (e) { /* kein Auftrag */ }
+  }, 3000);
   refreshPreviewSource();
 }
 
