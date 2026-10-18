@@ -1,18 +1,18 @@
 <p align="center">
-  <img src="docs/images/hero.png" alt="MS Printer" width="100%">
+  <img src="docs/images/hero.png" alt="Morgenstern Printer" width="100%">
 </p>
 
 <p align="center">
   <b>Lässt dein ganzes Photoshop-Dokument aussehen wie gedruckt, kopiert oder gefaxt – ohne PNG-Texturen.</b><br>
   <sub>Photoshop 2023 (24.2) oder neuer · UXP-Panel</sub><br>
-  <sub><b>MS</b> steht für <b>Morgenstern</b>: freie Photoshop-Tools · <a href="https://github.com/M0rgenst3rn/ms-distress">MS Distress</a> · <b>MS Printer</b> · <a href="https://github.com/M0rgenst3rn/ms-render">MS Render</a> · <a href="https://github.com/M0rgenst3rn/ms-phase">MS Phase</a> · <a href="https://github.com/M0rgenst3rn/ms-glow">MS Glow</a></sub>
+  <sub>Freie Photoshop-Tools von <b>Morgenstern</b> · <a href="https://github.com/M0rgenst3rn/ms-distress">Morgenstern Distress</a> · <b>Morgenstern Printer</b> · <a href="https://github.com/M0rgenst3rn/ms-render">Morgenstern Render</a> · <a href="https://github.com/M0rgenst3rn/ms-phase">Morgenstern Phase</a> · <a href="https://github.com/M0rgenst3rn/ms-glow">Morgenstern Glow</a></sub>
 </p>
 
 ---
 
-## Was ist MS Printer?
+## Was ist Morgenstern Printer?
 
-Digitale Grafiken wirken oft zu sauber und zu perfekt. **MS Printer** gibt ihnen den Look von echtem Druck:
+Digitale Grafiken wirken oft zu sauber und zu perfekt. **Morgenstern Printer** gibt ihnen den Look von echtem Druck:
 Toner-Flecken, Aussetzer, Papierstruktur und Rauschen. Alles wird prozedural berechnet, ganz ohne Bilddateien.
 
 Mit einem Klick legt das Plugin oben ins Dokument eine Gruppe **„MS Printer“**. Darin liegen echte
@@ -46,7 +46,7 @@ MS Printer   (Gruppe, Deckkraft 35 %)
 </tr>
 </table>
 
-**MS Printer schaut sich dein Dokument an**:
+**Morgenstern Printer schaut sich dein Dokument an**:
 
 - **Auf hellen Flächen** erscheinen Fehler als Toner-Flecken und feiner Schmutz auf dem Papier.
 - **Auf dunklen Flächen** erscheinen sie als helle Fehlstellen, also fehlender Toner und Staub. So ist der Look auch auf schwarzen Motiven sichtbar.
@@ -115,7 +115,7 @@ Altes Papier, dazu eigene Presets zum Speichern.
 
 ## So benutzt du es
 
-1. Dokument öffnen und MS Printer starten
+1. Dokument öffnen und Morgenstern Printer starten
 2. Einen Druckfehler oder ein Preset wählen. Die Vorschau zeigt das Ergebnis sofort
 3. **Anwenden** klicken, oder **Live** einschalten
 4. Feinschliff wahlweise im Panel oder direkt an der Gruppe „MS Printer“ in Photoshop
@@ -161,5 +161,5 @@ Verbindung zu Adobe.
 
 ---
 
-<p align="center"><sub>MS Printer · ein Tool von <b>Morgenstern</b><br>
+<p align="center"><sub>Morgenstern Printer<br>
 Entwickelt von Linus Leinberger</sub></p>
