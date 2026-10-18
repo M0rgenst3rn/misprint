@@ -5,7 +5,7 @@
 <p align="center">
   <b>Lässt dein ganzes Photoshop-Dokument aussehen wie gedruckt, kopiert oder gefaxt – ohne PNG-Texturen.</b><br>
   <sub>Photoshop 2023 (24.2) oder neuer · UXP-Panel</sub><br>
-  <sub><b>MS</b> steht für <b>Morgenstern</b>: freie Photoshop-Tools · <a href="https://github.com/M0rgenst3rn/ms-distress">MS Distress</a> · <b>MS Printer</b> · <a href="https://github.com/M0rgenst3rn/ms-render">MS Render</a> · <a href="https://github.com/M0rgenst3rn/ms-phase">MS Phase</a></sub>
+  <sub><b>MS</b> steht für <b>Morgenstern</b>: freie Photoshop-Tools · <a href="https://github.com/M0rgenst3rn/ms-distress">MS Distress</a> · <b>MS Printer</b> · <a href="https://github.com/M0rgenst3rn/ms-render">MS Render</a> · <a href="https://github.com/M0rgenst3rn/ms-phase">MS Phase</a> · <a href="https://github.com/M0rgenst3rn/ms-glow">MS Glow</a></sub>
 </p>
 
 ---
