@@ -1,4 +1,4 @@
-// Erzeugt die Plugin-Icons (ein "P" mit Druckerkorn) mit der eigenen Engine.
+// Creates the plugin icons (a "P" with printer grain) with its own engine.
 const fs = require("fs");
 const path = require("path");
 const Core = require(path.join(__dirname, "..", "printer", "core.js"));
@@ -12,7 +12,7 @@ function icon(size, file) {
   const m = size * 0.16, stroke = size * 0.2;
   const cx = size * 0.48, cy = size * 0.36, r = size * 0.2;
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-    // Buchstabe P: Stamm + Ring oben
+    // letter P: stem + ring on top
     const inStem = x >= m && x < m + stroke && y >= m && y < size - m;
     const dx = x - cx, dy = y - cy, d = Math.sqrt(dx * dx + dy * dy);
     const inBowl = (x >= cx ? d <= r + stroke / 2 && d >= r - stroke / 2 : (Math.abs(y - (cy - r)) < stroke / 2 || Math.abs(y - (cy + r)) < stroke / 2) && x >= m);

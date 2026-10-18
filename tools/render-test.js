@@ -1,5 +1,5 @@
-// Rendert alle Druckfehler über ein Test-Artwork -> PNG, um die Engine ohne Photoshop zu prüfen.
-// Aufruf: node tools/render-test.js <ausgabe.png> [json-params]
+// Renders every print defect over a test artwork -> PNG, to check the engine without Photoshop.
+// Usage: node tools/render-test.js <output.png> [json-params]
 const fs = require("fs");
 const path = require("path");
 const Core = require(path.join(__dirname, "..", "printer", "core.js"));
@@ -8,7 +8,7 @@ const { encodePNG } = require("./png.js");
 const out = process.argv[2] || "test.png";
 const extra = process.argv[3] ? JSON.parse(process.argv[3]) : {};
 const tw = 300, th = 170;
-// Test-Artwork: weißes Papier, schwarzer Balken, roter Kreis, blauer Streifen
+// test artwork: white paper, black bar, red circle, blue stripe
 const art = new Uint8Array(tw * th * 3).fill(255);
 for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
   let c = null;

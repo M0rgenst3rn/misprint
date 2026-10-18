@@ -1,10 +1,10 @@
 "use strict";
-// MS Printer – Kern-Engine.
-// Prozedurale Druckerfehler (Toner, Kopierer, Inkjet, Riso, Raster, Fax …) und die Berechnung
-// von Aussetzer-Maske, Toner-Ebene, Streu-Toner und Fehldruck-Versatz.
-// Reines JavaScript ohne Photoshop-Abhängigkeit (läuft im Plugin und in Node).
+// MS Printer – core engine.
+// Procedural print defects (toner, copier, inkjet, riso, halftone, fax …) and the computation
+// of the dropout mask, toner layer, stray toner and misprint offset.
+// Plain JavaScript without Photoshop dependencies (runs in the plugin and in Node).
 
-// ---------------------------------------------------------------- Rauschen
+// ---------------------------------------------------------------- Noise
 
 function hashi(x, y, s) {
   let h = Math.imul(x | 0, 0x27d4eb2d) ^ Math.imul(y | 0, 0x165667b1) ^ Math.imul(s | 0, 0x9e3779b1);
@@ -58,7 +58,7 @@ function ridged(x, y, oct, s) {
   return sum / norm;
 }
 
-// Weißes Rauschen in Zellen der Größe 1/f (Einheiten) – das eigentliche "Druckerkorn"
+// white noise in cells of size 1/f (units) – the actual "printer grain"
 function wn(x, y, s, f) { return rnd(Math.floor(x * f), Math.floor(y * f), s) * 2 - 1; }
 
 let F1 = 0, F2 = 0, CID = 0;
@@ -78,40 +78,40 @@ function cellular(x, y, s) {
 }
 function cidRand(salt) { return hashi(CID, salt, 7) / 4294967296; }
 
-// Linie bei |n| < w (für Streifen/Haare), 1 auf der Linie, 0 daneben
+// line at |n| < w (for streaks/hairs), 1 on the line, 0 next to it
 function line(n, w) { return 1 - clamp01(Math.abs(n) / w); }
 
 const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
-// ---------------------------------------------------------------- Druckerfehler
-// Jede Funktion liefert einen Rohwert. NIEDRIG = Toner/Tinte (dunkel), HOCH = Aussetzer (Papier).
-// Die Werte werden danach gleichverteilt, damit „Toner 20 %“ bei jedem Typ ~20 % Fläche bedeutet.
-// Einheiten: 1 = 64 px bei Scale 100 %.
+// ---------------------------------------------------------------- Print defects
+// Every function returns a raw value. LOW = toner/ink (dark), HIGH = dropout (paper).
+// The values are then equalised so that "toner 20 %" means ~20 % coverage for every type.
+// Units: 1 = 64 px at size 100 %.
 
 const NOISES = [
   // --- Laser / Toner
-  { id: "toner", group: "Laser", name: "Toner fein", make: (s) => (x, y) =>
+  { id: "toner", group: "Laser", name: "Fine toner", make: (s) => (x, y) =>
     0.55 * wn(x, y, s, 40) + 0.35 * perlin(x * 18, y * 18, s + 1) + 0.35 * fbm(x * 0.8, y * 0.8, 3, s + 2) },
-  { id: "tonercoarse", group: "Laser", name: "Toner grob", make: (s) => (x, y) =>
+  { id: "tonercoarse", group: "Laser", name: "Coarse toner", make: (s) => (x, y) =>
     0.4 * wn(x, y, s, 16) + 0.45 * perlin(x * 7, y * 7, s + 1) + 0.4 * fbm(x * 0.6, y * 0.6, 3, s + 2) },
-  { id: "speckles", group: "Laser", name: "Toner-Sprenkel", make: (s) => (x, y) => {
+  { id: "speckles", group: "Laser", name: "Toner speckles", make: (s) => (x, y) => {
     cellular(x * 6, y * 6, s);
     const dark = clamp01((0.05 + 0.13 * Math.pow(cidRand(1), 3) - F1) / 0.04);
     cellular(x * 5, y * 5, s + 5);
     const light = clamp01((0.04 + 0.1 * Math.pow(cidRand(2), 3) - F1) / 0.04);
     return light - dark + 0.12 * fbm(x * 1.5, y * 1.5, 3, s + 3) + 0.08 * wn(x, y, s + 4, 40);
   } },
-  { id: "clumps", group: "Laser", name: "Toner-Klumpen", make: (s) => (x, y) => {
+  { id: "clumps", group: "Laser", name: "Toner clumps", make: (s) => (x, y) => {
     const w = fbm(x * 2, y * 2, 3, s + 1) * 0.15;
     cellular(x * 2.2 + w, y * 2.2 - w, s);
     const blob = clamp01((0.08 + 0.25 * Math.pow(cidRand(1), 2) - F1) / 0.06);
     return 0.35 * fbm(x * 1.2, y * 1.2, 4, s + 2) - blob + 0.1 * wn(x, y, s + 3, 30);
   } },
-  { id: "lowtoner", group: "Laser", name: "Toner leer", make: (s) => (x, y) =>
+  { id: "lowtoner", group: "Laser", name: "Low toner", make: (s) => (x, y) =>
     0.8 * fbm(x * 0.45, y * 0.45, 4, s) + 0.3 * wn(x, y, s + 1, 40) + 0.3 * perlin(x * 6, y * 6, s + 2) },
-  { id: "drumstreaks", group: "Laser", name: "Trommel-Streifen", make: (s) => (x, y) =>
+  { id: "drumstreaks", group: "Laser", name: "Drum streaks", make: (s) => (x, y) =>
     0.8 * fbm(x * 9, y * 0.05, 3, s) + 0.25 * wn(x, y, s + 1, 40) + 0.2 * fbm(x * 0.5, y * 0.5, 2, s + 2) },
-  { id: "drumscratch", group: "Laser", name: "Trommel-Kratzer", make: (s) => (x, y) => {
+  { id: "drumscratch", group: "Laser", name: "Drum scratches", make: (s) => (x, y) => {
     const col = Math.floor(x * 24);
     const on = rnd(col, 1, s) > 0.86 ? 1 : 0;
     const fx = x * 24 - col - 0.5;
@@ -120,82 +120,82 @@ const NOISES = [
   } },
   { id: "banding", group: "Laser", name: "Banding", make: (s) => (x, y) =>
     0.45 * Math.sin((y * 1.3 + fbm(x * 0.1, y * 0.1, 2, s) * 0.3) * Math.PI * 2) + 0.35 * fbm(x * 0.3, y * 5, 3, s + 1) + 0.25 * wn(x, y, s + 2, 40) },
-  { id: "fuser", group: "Laser", name: "Fixierer-Schliere", make: (s) => (x, y) =>
+  { id: "fuser", group: "Laser", name: "Fuser smear", make: (s) => (x, y) =>
     fbm(x * 0.05, y * 9, 4, s) + 0.3 * fbm(x * 2, y * 2, 3, s + 1) + 0.15 * wn(x, y, s + 2, 40) },
-  { id: "ghost", group: "Laser", name: "Laser-Ghosting", make: (s) => (x, y) =>
+  { id: "ghost", group: "Laser", name: "Laser ghosting", make: (s) => (x, y) =>
     0.5 * Math.sin((y * 0.6 + fbm(x * 0.3, y * 0.3, 2, s) * 0.5) * Math.PI * 2) * fbm(x * 0.6, y * 0.6, 3, s + 1) + 0.3 * wn(x, y, s + 2, 40) + 0.3 * fbm(x * 3, y * 3, 2, s + 3) },
-  // --- Kopierer / Scanner
-  { id: "copygrain", group: "Kopierer", name: "Kopierer-Korn", make: (s) => (x, y) =>
+  // --- Copier / scanner
+  { id: "copygrain", group: "Copier", name: "Copier grain", make: (s) => (x, y) =>
     0.5 * wn(x, y, s, 30) + 0.4 * perlin(x * 12, y * 12, s + 1) + 0.3 * fbm(x * 0.4, y * 0.4, 3, s + 2) },
-  { id: "copy3", group: "Kopierer", name: "Kopie 3. Gen.", make: (s) => (x, y) =>
+  { id: "copy3", group: "Copier", name: "Copy, 3rd gen.", make: (s) => (x, y) =>
     0.5 * fbm(x * 2, y * 2, 5, s) + 0.5 * wn(x, y, s + 1, 22) + 0.35 * ridged(x * 0.4, y * 0.4, 3, s + 2) - 0.2 },
-  { id: "copy5", group: "Kopierer", name: "Kopie 5. Gen.", make: (s) => (x, y) => {
+  { id: "copy5", group: "Copier", name: "Copy, 5th gen.", make: (s) => (x, y) => {
     const w = fbm(x * 0.8, y * 0.8, 3, s + 3) * 0.4;
     return 0.6 * fbm(x * 3 + w, y * 3 - w, 5, s) + 0.5 * wn(x, y, s + 1, 16) + 0.4 * perlin(x * 0.3, y * 0.3, s + 2);
   } },
-  { id: "glassdust", group: "Kopierer", name: "Glas-Staub", make: (s) => (x, y) => {
+  { id: "glassdust", group: "Copier", name: "Glass dust", make: (s) => (x, y) => {
     cellular(x * 3, y * 3, s);
     const dot = clamp01((0.02 + 0.1 * Math.pow(cidRand(1), 5) - F1) / 0.02);
     const hair = line(fbm(x * 0.35, y * 0.35, 3, s + 2), 0.01) * clamp01(perlin(x * 0.2, y * 0.2, s + 3) * 3 - 0.5);
     return 0.2 * wn(x, y, s + 4, 40) + 0.15 * fbm(x, y, 2, s + 5) - Math.max(dot, hair * 0.8);
   } },
-  { id: "scanlines", group: "Kopierer", name: "Scanner-Linien", make: (s) => (x, y) => {
+  { id: "scanlines", group: "Copier", name: "Scanner lines", make: (s) => (x, y) => {
     const col = Math.floor(x * 30);
     const r = rnd(col, 1, s);
     const v = r > 0.93 ? -1 : r < 0.05 ? 1 : 0;
     return v * line(x * 30 - col - 0.5, 0.4) + 0.25 * wn(x, y, s + 2, 40) + 0.2 * fbm(x * 0.5, y * 0.5, 2, s + 3);
   } },
-  { id: "copyedge", group: "Kopierer", name: "Deckel-Schatten", make: (s) => (x, y) =>
+  { id: "copyedge", group: "Copier", name: "Lid shadow", make: (s) => (x, y) =>
     0.7 * fbm(x * 0.15, y * 0.15, 3, s) - 0.5 * ridged(x * 0.6, y * 0.6, 3, s + 1) + 0.3 * wn(x, y, s + 2, 30) },
   // --- Inkjet
-  { id: "inkband", group: "Inkjet", name: "Inkjet-Banding", make: (s) => (x, y) =>
+  { id: "inkband", group: "Inkjet", name: "Inkjet banding", make: (s) => (x, y) =>
     0.4 * Math.sin(y * Math.PI * 2 * 10) + 0.45 * fbm(x * 0.2, y * 10, 3, s) + 0.2 * wn(x, y, s + 1, 40) },
-  { id: "nozzle", group: "Inkjet", name: "Düsen-Aussetzer", make: (s) => (x, y) => {
+  { id: "nozzle", group: "Inkjet", name: "Clogged nozzles", make: (s) => (x, y) => {
     const row = Math.floor(y * 18);
     const on = rnd(row, 3, s) > 0.82 ? 1 : 0;
     const gap = clamp01(fbm(x * 0.3, row, 2, s + 1) * 3 + 0.6);
     return on * gap * line(y * 18 - row - 0.5, 0.35) + 0.2 * wn(x, y, s + 2, 40) + 0.2 * fbm(x, y, 3, s + 4);
   } },
-  { id: "headstrike", group: "Inkjet", name: "Kopf-Schmierer", make: (s) => (x, y) =>
+  { id: "headstrike", group: "Inkjet", name: "Head strike", make: (s) => (x, y) =>
     0.8 * fbm(x * 0.08, y * 3, 4, s) + 0.3 * fbm(x * 1.5, y * 1.5, 3, s + 1) + 0.15 * wn(x, y, s + 2, 40) },
   { id: "dotgain", group: "Inkjet", name: "Dot Gain", make: (s) => (x, y) => {
     cellular(x * 16, y * 16, s);
     return F1 - 0.3 + 0.3 * fbm(x * 0.8, y * 0.8, 3, s + 1);
   } },
-  { id: "mottle", group: "Inkjet", name: "Tinten-Mottle", make: (s) => (x, y) =>
+  { id: "mottle", group: "Inkjet", name: "Ink mottle", make: (s) => (x, y) =>
     fbm(x * 1.6, y * 1.6, 5, s) + 0.2 * perlin(x * 10, y * 10, s + 1) + 0.1 * wn(x, y, s + 2, 40) },
-  { id: "wetink", group: "Inkjet", name: "Nasse Tinte", make: (s) => (x, y) => {
+  { id: "wetink", group: "Inkjet", name: "Wet ink", make: (s) => (x, y) => {
     const wx = fbm(x * 0.9, y * 0.9, 3, s + 1);
     return fbm(x * 1.2 + wx * 1.5, y * 1.2 - wx * 1.5, 5, s) + 0.1 * wn(x, y, s + 2, 40);
   } },
-  { id: "starve", group: "Inkjet", name: "Tinte läuft aus", make: (s) => (x, y) =>
+  { id: "starve", group: "Inkjet", name: "Ink running out", make: (s) => (x, y) =>
     0.6 * fbm(x * 0.2, y * 0.2, 3, s) + 0.45 * fbm(x * 5, y * 0.1, 3, s + 1) + 0.25 * wn(x, y, s + 2, 40) },
   // --- Riso
-  { id: "riso", group: "Riso", name: "Riso-Korn", make: (s) => (x, y) =>
+  { id: "riso", group: "Riso", name: "Riso grain", make: (s) => (x, y) =>
     0.5 * wn(x, y, s, 35) + 0.5 * fbm(x * 1.2, y * 1.2, 4, s + 1) },
-  { id: "risomottle", group: "Riso", name: "Riso-Fleckig", make: (s) => (x, y) =>
+  { id: "risomottle", group: "Riso", name: "Riso mottle", make: (s) => (x, y) =>
     fbm(x * 0.7, y * 0.7, 5, s) + 0.25 * perlin(x * 16, y * 16, s + 1) + 0.15 * wn(x, y, s + 2, 40) },
-  { id: "risoroller", group: "Riso", name: "Riso-Walze", make: (s) => (x, y) =>
+  { id: "risoroller", group: "Riso", name: "Riso roller", make: (s) => (x, y) =>
     0.6 * fbm(x * 0.06, y * 1.2, 3, s) + 0.3 * Math.sin(y * Math.PI * 2 * 0.7) + 0.3 * wn(x, y, s + 1, 35) },
-  { id: "risomaster", group: "Riso", name: "Riso-Master", make: (s) => (x, y) => {
+  { id: "risomaster", group: "Riso", name: "Riso master", make: (s) => (x, y) => {
     cellular(x * 22, y * 22, s);
     return 0.5 * (F1 - 0.35) + 0.5 * fbm(x * 0.9, y * 0.9, 4, s + 1) + 0.15 * wn(x, y, s + 2, 40);
   } },
-  // --- Raster / Offset / Sieb
-  { id: "halftone", group: "Raster", name: "AM-Raster", make: (s) => (x, y) => {
+  // --- Halftone / offset / screen
+  { id: "halftone", group: "Halftone", name: "AM halftone", make: (s) => (x, y) => {
     const gx = (x + y) * 0.7071 * 9, gy = (y - x) * 0.7071 * 9;
     const cx = gx - Math.floor(gx) - 0.5, cy = gy - Math.floor(gy) - 0.5;
     return Math.sqrt(cx * cx + cy * cy) - (0.5 + 0.5 * fbm(x * 0.4, y * 0.4, 3, s)) * 0.55;
   } },
-  { id: "lines", group: "Raster", name: "Linienraster", make: (s) => (x, y) => {
+  { id: "lines", group: "Halftone", name: "Line screen", make: (s) => (x, y) => {
     const g = (x * 0.5 + y * 0.866) * 10;
     return Math.abs(g - Math.floor(g) - 0.5) - (0.25 + 0.2 * fbm(x * 0.5, y * 0.5, 3, s));
   } },
-  { id: "fm", group: "Raster", name: "FM-Raster", make: (s) => (x, y) => {
+  { id: "fm", group: "Halftone", name: "FM halftone", make: (s) => (x, y) => {
     cellular(x * 26, y * 26, s);
     return 0.6 * F1 + 0.4 * fbm(x * 0.7, y * 0.7, 4, s + 1);
   } },
-  { id: "moire", group: "Raster", name: "Moiré", make: (s) => {
+  { id: "moire", group: "Halftone", name: "Moiré", make: (s) => {
     const a = 0.12 + rnd(1, 2, s) * 0.1, ca = Math.cos(a), sa = Math.sin(a);
     return (x, y) => {
       const f = 10;
@@ -205,41 +205,41 @@ const NOISES = [
       return v1 + v2 + 0.2 * wn(x, y, s, 40);
     };
   } },
-  { id: "newsprint", group: "Raster", name: "Zeitungsdruck", make: (s) => (x, y) => {
+  { id: "newsprint", group: "Halftone", name: "Newsprint", make: (s) => (x, y) => {
     const gx = (x + y) * 0.7071 * 7, gy = (y - x) * 0.7071 * 7;
     const cx = gx - Math.floor(gx) - 0.5, cy = gy - Math.floor(gy) - 0.5;
     return 0.6 * (Math.sqrt(cx * cx + cy * cy) - 0.3) + 0.35 * fbm(x * 1.5, y * 1.5, 4, s) + 0.25 * wn(x, y, s + 1, 30);
   } },
-  { id: "mesh", group: "Raster", name: "Siebdruck-Gewebe", make: (s) => (x, y) =>
+  { id: "mesh", group: "Halftone", name: "Screen-print mesh", make: (s) => (x, y) =>
     0.45 * Math.sin(x * 22 * Math.PI) * Math.sin(y * 22 * Math.PI) + 0.5 * fbm(x * 0.9, y * 0.9, 4, s) + 0.15 * wn(x, y, s + 1, 40) },
-  { id: "offsetmottle", group: "Raster", name: "Offset-Wolkig", make: (s) => (x, y) =>
+  { id: "offsetmottle", group: "Halftone", name: "Offset mottle", make: (s) => (x, y) =>
     0.8 * fbm(x * 0.5, y * 0.5, 5, s) + 0.2 * Math.sin(x * 9 * Math.PI) * Math.sin(y * 9 * Math.PI) + 0.1 * wn(x, y, s + 1, 40) },
-  // --- Fax / Thermo / Nadel
-  { id: "fax", group: "Fax & Bon", name: "Fax-Linien", make: (s) => (x, y) => {
+  // --- Fax / thermal / dot matrix
+  { id: "fax", group: "Fax & receipt", name: "Fax lines", make: (s) => (x, y) => {
     const row = Math.floor(y * 24);
     return 0.5 * (rnd(row, 1, s) - 0.5) + 0.4 * fbm(x * 3, row * 0.37, 2, s + 1) + 0.3 * wn(x, y, s + 2, 30);
   } },
-  { id: "thermal", group: "Fax & Bon", name: "Thermodruck", make: (s) => (x, y) =>
+  { id: "thermal", group: "Fax & receipt", name: "Thermal print", make: (s) => (x, y) =>
     0.7 * fbm(x * 0.05, y * 0.8, 3, s) + 0.3 * wn(x, y, s + 1, 40) + 0.2 * fbm(x * 2, y * 2, 2, s + 2) },
-  { id: "receipt", group: "Fax & Bon", name: "Kassenbon", make: (s) => (x, y) =>
+  { id: "receipt", group: "Fax & receipt", name: "Receipt", make: (s) => (x, y) =>
     0.5 * fbm(x * 0.05, y * 0.6, 3, s) + 0.4 * fbm(x * 8, y * 0.04, 3, s + 1) + 0.25 * wn(x, y, s + 2, 40) },
-  { id: "dotmatrix", group: "Fax & Bon", name: "Nadeldrucker", make: (s) => (x, y) => {
+  { id: "dotmatrix", group: "Fax & receipt", name: "Dot matrix", make: (s) => (x, y) => {
     const ry = y * 10, row = Math.floor(ry);
     const off = (rnd(row, 4, s) - 0.5) * 0.25;
     const rx = x * 14 + off;
     const dx = rx - Math.floor(rx) - 0.5, dy = ry - row - 0.5;
     return Math.sqrt(dx * dx + dy * dy) - 0.38 + 0.25 * fbm(x * 0.4, y * 2, 3, s + 1);
   } },
-  // --- Digital / Papier
-  { id: "bayer", group: "Digital & Papier", name: "Bayer-Dither", make: (s) => (x, y) => {
+  // --- Digital / paper
+  { id: "bayer", group: "Digital & paper", name: "Bayer dither", make: (s) => (x, y) => {
     const ix = Math.floor(x * 32) & 3, iy = Math.floor(y * 32) & 3;
     return BAYER4[iy * 4 + ix] / 16 - (0.5 + 0.5 * fbm(x * 0.5, y * 0.5, 3, s));
   } },
-  { id: "dither", group: "Digital & Papier", name: "Fehlerdiffusion", make: (s) => (x, y) =>
+  { id: "dither", group: "Digital & paper", name: "Error diffusion", make: (s) => (x, y) =>
     0.7 * wn(x, y, s, 48) - 0.6 * fbm(x * 0.6, y * 0.6, 3, s + 1) },
-  { id: "paper", group: "Digital & Papier", name: "Papierkorn", make: (s) => (x, y) =>
+  { id: "paper", group: "Digital & paper", name: "Paper grain", make: (s) => (x, y) =>
     0.5 * fbm(x * 3, y * 3, 4, s) + 0.5 * perlin(x * 25, y * 25, s + 1) },
-  { id: "fibers", group: "Digital & Papier", name: "Papierfasern", make: (s) => {
+  { id: "fibers", group: "Digital & paper", name: "Paper fibres", make: (s) => {
     const A = [];
     for (let k = 0; k < 4; k++) { const a = rnd(k, 3, s) * Math.PI; A.push([Math.cos(a), Math.sin(a)]); }
     return (x, y) => {
@@ -251,7 +251,7 @@ const NOISES = [
       return v * 0.6 + 0.3 * fbm(x * 1.2, y * 1.2, 3, s + 90) + 0.1 * wn(x, y, s + 9, 40);
     };
   } },
-  { id: "tonerdust", group: "Digital & Papier", name: "Toner-Staub", make: (s) => (x, y) => {
+  { id: "tonerdust", group: "Digital & paper", name: "Toner dust", make: (s) => (x, y) => {
     cellular(x * 9, y * 9, s);
     return 0.6 * wn(x, y, s + 1, 45) + 0.6 * F1 + 0.2 * fbm(x * 0.5, y * 0.5, 2, s + 2);
   } },
@@ -260,7 +260,7 @@ const NOISE_BY_ID = {};
 for (const n of NOISES) NOISE_BY_ID[n.id] = n;
 
 const DEFAULTS = {
-  // Druckfehler-Textur
+  // print defect texture
   texture: "copygrain",
   scale: 100,
   rotation: 0,
@@ -271,27 +271,27 @@ const DEFAULTS = {
   texture2Mix: 50,
   texture2Mode: "blend",
   texture2Invert: false,
-  // Ebene "Toner" (dunkle Flecken)
+  // layer "Toner" (dark spots)
   tonerEnabled: true,
   toner: 25,
   tonerOpacity: 85,
   inkColor: "#161616",
   tonerBlend: "multiply",
-  // Ebene "Aussetzer" (Papier scheint durch)
+  // layer "Dropouts" (paper shows through)
   dropoutEnabled: true,
   dropout: 20,
   dropoutOpacity: 100,
   paperColor: "#ffffff",
   dropoutBlend: "normal",
-  // gemeinsam
+  // shared
   grain: 20,
   softness: 15,
   paperDirt: 30,
-  autoAdapt: true,          // Fehler an Dokumentfarben anpassen (dunkle Flächen -> helle Fehlstellen)
-  strength: 35,             // Deckkraft der ganzen Gruppe "MS Printer"
+  autoAdapt: true,          // adapt the defects to the document colours (dark areas -> light defects)
+  strength: 35,             // opacity of the whole group "MS Printer"
   fadeAmount: 0,
   fadeStyle: "frame",
-  // Papier
+  // paper
   paperGrain: 30,
   paperTone: 0,
   paperToneColor: "#efe4cc",
@@ -299,42 +299,42 @@ const DEFAULTS = {
 };
 
 const FADE_STYLES = [
-  { id: "top", name: "Von oben" },
-  { id: "bottom", name: "Von unten" },
-  { id: "left", name: "Von links" },
-  { id: "right", name: "Von rechts" },
+  { id: "top", name: "From top" },
+  { id: "bottom", name: "From bottom" },
+  { id: "left", name: "From left" },
+  { id: "right", name: "From right" },
   { id: "diagonal", name: "Diagonal" },
-  { id: "center", name: "Radial – Mitte" },
-  { id: "edges", name: "Radial – Rand" },
-  { id: "frame", name: "Rahmen" },
-  { id: "random", name: "Zufällige Wolken" },
+  { id: "center", name: "Radial – centre" },
+  { id: "edges", name: "Radial – edge" },
+  { id: "frame", name: "Frame" },
+  { id: "random", name: "Random clouds" },
 ];
 
 const MIX_MODES = [
-  { id: "blend", name: "Überblenden" },
-  { id: "add", name: "Addieren (beide)" },
-  { id: "mask", name: "Maskieren (Überschneidung)" },
+  { id: "blend", name: "Blend" },
+  { id: "add", name: "Add (both)" },
+  { id: "mask", name: "Mask (overlap)" },
 ];
 
 const BLEND_MODES = [
-  { id: "multiply", name: "Multiplizieren" },
-  { id: "linearBurn", name: "Linear nachbelichten" },
-  { id: "colorBurn", name: "Farbig nachbelichten" },
-  { id: "darken", name: "Abdunkeln" },
+  { id: "multiply", name: "Multiply" },
+  { id: "linearBurn", name: "Linear Burn" },
+  { id: "colorBurn", name: "Color Burn" },
+  { id: "darken", name: "Darken" },
   { id: "normal", name: "Normal" },
-  { id: "overlay", name: "Ineinanderkopieren" },
-  { id: "softLight", name: "Weiches Licht" },
+  { id: "overlay", name: "Overlay" },
+  { id: "softLight", name: "Soft Light" },
 ];
 
 const LIGHT_MODES = [
   { id: "normal", name: "Normal" },
-  { id: "screen", name: "Negativ multiplizieren" },
-  { id: "lighten", name: "Aufhellen" },
-  { id: "softLight", name: "Weiches Licht" },
-  { id: "overlay", name: "Ineinanderkopieren" },
+  { id: "screen", name: "Screen" },
+  { id: "lighten", name: "Lighten" },
+  { id: "softLight", name: "Soft Light" },
+  { id: "overlay", name: "Overlay" },
 ];
 
-// ---------------------------------------------------------------- Sampler + Verteilung
+// ---------------------------------------------------------------- Sampler + distribution
 
 function buildSampler(params, customTex) {
   const seed = params.seed | 0;
@@ -344,7 +344,7 @@ function buildSampler(params, customTex) {
   const ox = rnd(seed, 11, 3) * 4096, oy = rnd(seed, 13, 5) * 4096;
   let gen;
   if (customTex && !NOISE_BY_ID[params.texture]) {
-    // Bild-Textur (gespiegelt gekachelt); Bilddaten: 255 = dunkel -> invertieren, da hier hoch = Papier
+    // image texture (mirrored tiling); image data: 255 = dark -> invert, since high = paper here
     const { w, h, data } = customTex;
     const k = customTex.k || 1;
     const w2 = w * 2, h2 = h * 2;
@@ -401,7 +401,7 @@ function lookupCDF(c, v) {
   return c.cdf[i] + (c.cdf[i + 1] - c.cdf[i]) * (t - i);
 }
 
-// Rauschen 1 (+ optional Rauschen 2) -> { sampler, cdf }
+// noise 1 (+ optional noise 2) -> { sampler, cdf }
 function buildPipeline(p, bounds, tex1, tex2) {
   const s1 = buildSampler(p, tex1);
   const useSecond = p.texture2 && p.texture2Mix > 0 && (NOISE_BY_ID[p.texture2] || tex2);
@@ -416,7 +416,7 @@ function buildPipeline(p, bounds, tex1, tex2) {
   const mode = p.texture2Mode;
   const sampler = (xd, yd) => {
     const a = lookupCDF(c1, s1(xd, yd)), b = lookupCDF(c2, s2(xd, yd));
-    // "Addieren": beide Fehlerarten sichtbar -> extremere Abweichung von 0.5 gewinnt
+    // "Add": both defect types visible -> the more extreme deviation from 0.5 wins
     if (mode === "add") { const e = Math.abs(b - 0.5) > Math.abs(a - 0.5) ? b : a; return a + (e - a) * m; }
     if (mode === "mask") return a + ((a - 0.5) * (b < 0.5 ? 1 - b * 2 : (b - 0.5) * 2) + 0.5 - a) * m;
     return a + (b - a) * m;
@@ -447,15 +447,15 @@ function makeFade(p, b, seed) {
   };
 }
 
-// ---------------------------------------------------------------- Overlay-Berechnung
-// Berechnet die Textur-Ebenen für das GANZE Dokument (oder einen verkleinerten Ausschnitt für
-// die Vorschau; originX/Y + pxScale bilden Pixel auf Dokument-Koordinaten ab).
-//   coverage – optional: Farbdeckung des Dokuments (0 = Papier/weiß, 255 = voll bedruckt).
-//              Steuert, wie viel Toner-Schmutz auf Papierflächen landet und dass Aussetzer nur
-//              auf bedruckten Stellen sichtbar werden.
-// Liefert (je w*h Byte):
-//   toner – Deckkraft der Toner-Ebene     light – Deckkraft der Aussetzer-Ebene
-//   paper – Grauwert der Papierstruktur (128 = neutral für "Weiches Licht") oder null
+// ---------------------------------------------------------------- Overlay computation
+// Computes the texture layers for the WHOLE document (or a downsampled region for
+// the preview; originX/Y + pxScale map pixels to document coordinates).
+//   coverage – optional: ink coverage of the document (0 = paper/white, 255 = fully printed).
+//              Controls how much toner dirt lands on paper areas and that dropouts only
+//              show on printed areas.
+// Returns (w*h bytes each):
+//   toner – opacity of the toner layer     light – opacity of the dropout layer
+//   paper – grey value of the paper texture (128 = neutral for "Soft Light") or null
 function computeOverlay(o) {
   const { width: w, height: h, originX, originY, bounds, coverage, luma } = o;
   const pxScale = o.pxScale || 1;
@@ -507,12 +507,12 @@ function computeOverlay(o) {
       let tonerA = darkness * (cov + (1 - cov) * dirt);
       let lightA = (1 - keep) * Math.min(1, cov * 1.5);
       if (auto && luma) {
-        // Dunkle Flecken sieht man nur auf hellen Flächen. Auf dunklen Flächen erscheint derselbe
-        // Fehler als helle Stelle (fehlender Toner, Staub) – so wirkt der Look auf jedem Motiv.
+        // Dark spots only show on light areas. On dark areas the same
+        // defect appears as a light spot (missing toner, dust) – so the look works on any image.
         const lum = luma[i] / 255;
         tonerA *= smooth(0.06, 0.4, lum);
         lightA = Math.max(lightA, darkness * (1 - smooth(0.12, 0.5, lum)) * 0.6);
-        lightA *= 1 - 0.4 * (1 - smooth(0.08, 0.45, lum)); // große schwarze Flächen nicht vergrauen
+        lightA *= 1 - 0.4 * (1 - smooth(0.08, 0.45, lum)); // don't grey out large black areas
       }
       toner[i] = (tonerA * 255 + 0.5) | 0;
       light[i] = (lightA * 255 + 0.5) | 0;
@@ -525,13 +525,13 @@ function computeOverlay(o) {
   return { toner, light, paper };
 }
 
-// Farbdeckung aus RGB(A)-Daten: 0 = weißes Papier, 255 = dunkel/bunt bedruckt
+// ink coverage from RGB(A) data: 0 = white paper, 255 = dark/colourful print
 function coverageFromRGBA(data, comps, n) {
   const cov = new Uint8Array(n);
   for (let i = 0; i < n; i++) {
     const r = data[i * comps], g = data[i * comps + 1], b = data[i * comps + 2];
     const a = comps >= 4 ? data[i * comps + 3] / 255 : 1;
-    // Abstand zu Weiß (Helligkeit + Sättigung), damit auch helle bunte Flächen als bedruckt zählen
+    // distance to white (brightness + saturation), so light colourful areas count as printed too
     const lum = 0.299 * r + 0.587 * g + 0.114 * b;
     const sat = Math.max(r, g, b) - Math.min(r, g, b);
     cov[i] = Math.min(255, Math.round(((255 - lum) + sat * 0.6) * 1.4 * a));
@@ -539,21 +539,21 @@ function coverageFromRGBA(data, comps, n) {
   return cov;
 }
 
-// Helligkeit (0 = schwarz, 255 = weiß)
+// brightness (0 = black, 255 = white)
 function lumaFromRGBA(data, comps, n) {
   const out = new Uint8Array(n);
   for (let i = 0; i < n; i++) out[i] = Math.round(0.299 * data[i * comps] + 0.587 * data[i * comps + 1] + 0.114 * data[i * comps + 2]);
   return out;
 }
 
-// Kurze Analyse fürs Panel: wie viel des Dokuments ist dunkel / bedruckt?
+// short analysis for the panel: how much of the document is dark / printed?
 function analyzeDocument(luma, coverage) {
   let dark = 0, ink = 0;
   for (let i = 0; i < luma.length; i++) { if (luma[i] < 90) dark++; if (coverage[i] > 128) ink++; }
   return { darkShare: dark / luma.length, inkShare: ink / luma.length };
 }
 
-// Photoshop-Mischmodi (Werte 0..1)
+// Photoshop blend modes (values 0..1)
 function blend(mode, a, b) {
   switch (mode) {
     case "multiply": return a * b;
@@ -574,8 +574,8 @@ function hexRGB01(hex) {
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
 
-// Simuliert die Gruppe „MS Printer“ über dem Dokument (unten -> oben: Papierton, Papierstruktur,
-// Toner, Aussetzer) – für Vorschau, Tests und README-Bilder. Liefert RGB (3 Byte/Pixel).
+// Simulates the group "MS Printer" above the document (bottom -> top: paper tone, paper texture,
+// toner, dropouts) – for preview, tests and README images. Returns RGB (3 bytes/pixel).
 function compositeOverlay(src, comps, out, p) {
   p = Object.assign({}, DEFAULTS, p);
   const toneC = hexRGB01(p.paperToneColor), inkC = hexRGB01(p.inkColor), paperC = hexRGB01(p.paperColor);
@@ -592,7 +592,7 @@ function compositeOverlay(src, comps, out, p) {
       if (out.paper) v = blend("softLight", v, pg);
       if (ta > 0) v = v * (1 - ta) + blend(p.tonerBlend, v, inkC[ch]) * ta;
       if (la > 0) v = v * (1 - la) + blend(p.dropoutBlend, v, paperC[ch]) * la;
-      // Deckkraft der ganzen Gruppe
+      // opacity of the whole group
       v = src[i * comps + ch] / 255 * (1 - grpOp) + v * grpOp;
       rgb[i * 3 + ch] = Math.max(0, Math.min(255, Math.round(v * 255)));
     }
@@ -600,7 +600,7 @@ function compositeOverlay(src, comps, out, p) {
   return rgb;
 }
 
-// Kachel-Vorschau: mittelgraue Fläche mit Toner (dunkel) und Aussetzern (weiß)
+// tile preview: mid-grey area with toner (dark) and dropouts (white)
 function renderThumb(texId, size, customTex) {
   const p = Object.assign({}, DEFAULTS, { texture: texId, seed: 7 });
   const sampler = buildSampler(p, customTex);

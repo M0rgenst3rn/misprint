@@ -3,163 +3,165 @@
 </p>
 
 <p align="center">
-  <b>Lässt dein ganzes Photoshop-Dokument aussehen wie gedruckt, kopiert oder gefaxt – ohne PNG-Texturen.</b><br>
-  <sub>Photoshop 2023 (24.2) oder neuer · UXP-Panel</sub><br>
-  <sub>Freie Photoshop-Tools von <b>Morgenstern</b> · <a href="https://github.com/M0rgenst3rn/ms-distress">Morgenstern Distress</a> · <b>Morgenstern Printer</b> · <a href="https://github.com/M0rgenst3rn/ms-render">Morgenstern Render</a> · <a href="https://github.com/M0rgenst3rn/ms-phase">Morgenstern Phase</a> · <a href="https://github.com/M0rgenst3rn/ms-glow">Morgenstern Glow</a></sub>
+  <b>Makes your whole Photoshop document look printed, photocopied or faxed – without PNG textures.</b><br>
+  <sub>Photoshop 2023 (24.2) or newer · UXP panel</sub><br>
+  <sub>Free Photoshop tools by <b>Morgenstern</b> · <a href="https://github.com/M0rgenst3rn/ms-distress">Morgenstern Distress</a> · <b>Morgenstern Printer</b> · <a href="https://github.com/M0rgenst3rn/ms-render">Morgenstern Render</a> · <a href="https://github.com/M0rgenst3rn/ms-phase">Morgenstern Phase</a> · <a href="https://github.com/M0rgenst3rn/ms-glow">Morgenstern Glow</a></sub>
 </p>
 
 ---
 
-## Was ist Morgenstern Printer?
+## What is Morgenstern Printer?
 
-Digitale Grafiken wirken oft zu sauber und zu perfekt. **Morgenstern Printer** gibt ihnen den Look von echtem Druck:
-Toner-Flecken, Aussetzer, Papierstruktur und Rauschen. Alles wird prozedural berechnet, ganz ohne Bilddateien.
+Digital graphics often look too clean and too perfect. **Morgenstern Printer** gives them the look of real
+print: toner spots, dropouts, paper texture and noise. Everything is computed procedurally, without any image
+files.
 
-Mit einem Klick legt das Plugin oben ins Dokument eine Gruppe **„MS Printer“**. Darin liegen echte
-Textur-Ebenen, die du danach ganz normal in Photoshop anpassen kannst:
+With one click the plugin puts a group **"MS Printer"** at the top of the document. It holds real texture
+layers that you can then adjust in Photoshop as usual:
 
 ```
-MS Printer   (Gruppe, Deckkraft 35 %)
-├─ Aussetzer        Papierfarbe, dort wo Toner fehlt
-├─ Toner            dunkle Flecken, Multiplizieren
-├─ Papierstruktur   Weiches Licht
-└─ Papierton        Multiplizieren
+MS Printer   (group, opacity 35 %)
+├─ Dropouts         paper colour where toner is missing
+├─ Toner            dark spots, Multiply
+├─ Paper texture    Soft Light
+└─ Paper tone       Multiply
 ```
 
 <table>
 <tr>
-<td width="38%" valign="top"><img src="docs/images/panel.png" alt="Das MS-Printer-Panel in Photoshop"></td>
+<td width="38%" valign="top"><img src="docs/images/panel.png" alt="The Morgenstern Printer panel in Photoshop"></td>
 <td valign="top">
 
 ### Highlights
 
-- **Immer das ganze Dokument**: eine Gruppe, echte Ebenen mit Mischmodi
-- **43 Druckfehler** in 7 Gruppen: Laser, Kopierer, Inkjet, Riso, Raster, Fax & Bon, Digital & Papier
-- **Passt sich deinem Motiv an**: hell oder dunkel, bedruckt oder Papier
-- **Deckkraft** oben im Panel, Standard dezente 35 %
-- **Vorschau** des ganzen Dokuments oder im Detail 1:1, dazu **Live** im Dokument
-- **Aufgeräumtes Panel**: Druckfehler nach Kategorien (Laser, Kopierer, Inkjet …), aufklappbare Bereiche, eigene Farbpalette
-- **Eigene Scans laden**, zwei Druckfehler kombinieren, **14 Presets**
-- **Selbsttest**: 84 Prüfungen gegen das echte Photoshop-Ergebnis
+- **Always the whole document**: one group, real layers with blend modes
+- **43 print defects** in 7 categories: laser, copier, inkjet, riso, halftone, fax & receipt, digital & paper
+- **Adapts to your image**: light or dark, printed or paper
+- **Opacity** at the top of the panel, a subtle 35 % by default
+- **Preview** of the whole document or a 1:1 detail, plus **Live** in the document
+- **A tidy panel**: defects sorted by category, collapsible sections, its own colour palette
+- **Load your own scans**, combine two defects, **14 looks**
+- **Self-test**: 84 checks against the real Photoshop result
 
 </td>
 </tr>
 </table>
 
-**Morgenstern Printer schaut sich dein Dokument an**:
+**Morgenstern Printer looks at your document**:
 
-- **Auf hellen Flächen** erscheinen Fehler als Toner-Flecken und feiner Schmutz auf dem Papier.
-- **Auf dunklen Flächen** erscheinen sie als helle Fehlstellen, also fehlender Toner und Staub. So ist der Look auch auf schwarzen Motiven sichtbar.
-- **Aussetzer** entstehen nur dort, wo tatsächlich etwas gedruckt ist.
+- **On light areas** defects appear as toner spots and fine dirt on the paper.
+- **On dark areas** they appear as light spots – missing toner and dust. So the look also shows on black images.
+- **Dropouts** only appear where something is actually printed.
 
-<p align="center"><img src="docs/images/vorher-nachher.png" alt="Vorher/Nachher auf hellem und dunklem Motiv"></p>
+<p align="center"><img src="docs/images/before-after.png" alt="Before and after on a light and a dark image"></p>
 
-## Dezent als Standard
+## Subtle by default
 
-Echte Druckfehler sind subtil. Darum startet die ganze Gruppe mit **35 % Deckkraft**. Mehr oder weniger
-stellst du direkt oben im Panel unter **Deckkraft** ein, oder später an der Gruppe in Photoshop.
+Real print defects are subtle. That's why the whole group starts at **35 % opacity**. Turn it up or down
+right at the top of the panel under **Opacity**, or later on the group in Photoshop.
 
-<p align="center"><img src="docs/images/deckkraft.png" alt="Deckkraft 15, 35, 60 und 100 %"></p>
+<p align="center"><img src="docs/images/opacity.png" alt="Opacity 15, 35, 60 and 100 %"></p>
 
-## 43 Druckfehler
+## 43 print defects
 
-Alle Druckfehler sind prozedural erzeugt, in jeder Auflösung scharf und nahtlos. Über **Zufall** (Würfeln)
-gibt es unendlich viele Varianten. Für die Übersicht hier mit 75 % Deckkraft gerendert:
+Every defect is generated procedurally, sharp and seamless at any resolution. **Seed** (Shuffle) gives
+endless variants. Rendered at 75 % opacity for this overview:
 
-<p align="center"><img src="docs/images/druckfehler.png" alt="Übersicht aller 43 Druckfehler"></p>
+<p align="center"><img src="docs/images/defects.png" alt="All 43 print defects"></p>
 
-Eigene Scans lädst du über **„Scan laden…“** als
-zusätzliche Kacheln. Zwei Druckfehler lassen sich kombinieren: überblenden, addieren oder maskieren.
+Load your own scans with **"Load scan…"** as extra tiles. Two defects can be combined: blend, add or mask.
 
-## Die Regler
+## The sliders
 
-<p align="center"><img src="docs/images/regler.png" alt="Wirkung der einzelnen Regler"></p>
+<p align="center"><img src="docs/images/sliders.png" alt="What the sliders do"></p>
 
-| Bereich | Regler | Was er macht |
+| Section | Slider | What it does |
 |---|---|---|
-| Oben | **Deckkraft** | Deckkraft der ganzen Gruppe, Standard 35 % |
-| Druckfehler | **Größe / Winkel / Korngröße** | Größe, Richtung und Korn des Druckfehlers |
-| Toner | **Menge / Deckkraft / Farbe / Mischmodus** | Dunkle Flecken |
-| Toner | **Schmutz auf Papier** | Wie viel Toner auf unbedruckten Flächen landet |
-| Aussetzer | **Menge / Deckkraft / Papierfarbe / Mischmodus** | Stellen, an denen Papier durchscheint |
-| Papier | **Struktur / Papierton** | Papierfaser-Struktur und Färbung, zum Beispiel vergilbt |
-| Struktur | **Körnung / Weichheit** | Feines Pixelkorn, harte oder weiche Druckpunkte |
-| Verlauf | **Stärke / Stil** | Fehler nehmen zum Rand, nach unten … zu |
-| | **An Dokumentfarben anpassen** | Helle Fehlstellen auf dunklen Flächen (Standard: an) |
+| Top | **Opacity** | Opacity of the whole group, 35 % by default |
+| Print defects | **Size** | Size of the defect |
+| Toner | **Amount / Colour** | Dark spots |
+| Dropouts | **Amount / Paper colour** | Places where the paper shows through |
+| Paper | **Paper tone / Grain** | Tint of the paper, e.g. yellowed, and fine pixel grain |
+| | **Adapt to document colours** | Light defects on dark areas (on by default) |
+| Fine-tuning | **Angle / Grain size** | Direction and grain of the defect |
+| Fine-tuning | **Toner: Opacity / Dirt on paper / Blend mode** | How much toner lands on unprinted areas |
+| Fine-tuning | **Dropouts: Opacity / Blend mode** | Strength of the dropout layer |
+| Fine-tuning | **Paper: Texture / Softness** | Paper fibre texture, hard or soft dots |
+| Fine-tuning | **Fade: Amount / Direction** | Defects increase towards the edge, the bottom … |
 
-Die Vorschau zeigt das ganze Dokument oder einen **Ausschnitt in 1:1**, damit du das echte Korn siehst.
-Mit **Live** landen Änderungen sofort im Dokument, zusammengefasst als ein Protokollschritt.
+The preview shows the whole document or a **1:1 detail**, so you see the real grain. With **Live**, changes
+land in the document right away, combined into one history step.
 
-## Presets
+## Looks
 
-Fotokopie · Fotokopie 3. Generation · Fotokopie kaputt · Laserdrucker Toner leer · Laserdrucker Streifen ·
-Riso fleckig · Riso Korn · Zeitungsdruck · Siebdruck · Inkjet billig · Fax · Kassenbon · Nadeldrucker ·
-Altes Papier, dazu eigene Presets zum Speichern.
+Photocopy · Photocopy 3rd generation · Photocopy broken · Laser printer low toner · Laser printer streaks ·
+Riso mottled · Riso grain · Newsprint · Screen print · Cheap inkjet · Fax · Receipt · Dot matrix ·
+Old paper, plus your own presets.
 
 ## Installation
 
-### macOS (empfohlen)
+### macOS (recommended)
 
-1. Repository herunterladen (**Code → Download ZIP**) und entpacken
-2. Im Terminal im entpackten Ordner ausführen:
+1. Download the repository (**Code → Download ZIP**) and unzip it
+2. Run this in Terminal inside the unzipped folder:
    ```bash
    bash install-mac.sh
    ```
-3. Photoshop (neu) starten → **Fenster › Zusatzmodule (Plugins) › MS Printer**
+3. (Re)start Photoshop → **Plugins › MS Printer**
 
 ### Alternative: UXP Developer Tool (macOS & Windows)
 
-1. „UXP Developer Tools“ über die Creative-Cloud-App installieren
-2. In Photoshop unter *Einstellungen › Zusatzmodule* den **Entwicklermodus** aktivieren
-3. Im UXP Developer Tool **Add Plugin** wählen, dann `printer/manifest.json` → **Load**
+1. Install "UXP Developer Tools" from the Creative Cloud app
+2. In Photoshop, turn on **Developer Mode** under *Settings › Plugins*
+3. In the UXP Developer Tool choose **Add Plugin**, then `printer/manifest.json` → **Load**
 
-## So benutzt du es
+## How to use it
 
-1. Dokument öffnen und Morgenstern Printer starten
-2. Einen Druckfehler oder ein Preset wählen. Die Vorschau zeigt das Ergebnis sofort
-3. **Anwenden** klicken, oder **Live** einschalten
-4. Feinschliff wahlweise im Panel oder direkt an der Gruppe „MS Printer“ in Photoshop
-5. **Entfernen** löscht die Gruppe wieder. Dein Artwork wird nie verändert
+1. Open a document and start Morgenstern Printer
+2. Pick a defect or a look. The preview shows the result right away
+3. Click **Apply**, or turn on **Live**
+4. Fine-tune in the panel or directly on the group "MS Printer" in Photoshop
+5. **Remove** deletes the group again. Your artwork is never changed
 
-**Tipp:** Die Gruppe liegt immer ganz oben. Neue Inhalte, die du später hinzufügst, berücksichtigt sie
-erst, wenn du erneut auf „Anwenden“ klickst oder Live eingeschaltet ist.
+**Tip:** the group always sits at the very top. It only takes new content you add later into account when you
+click "Apply" again or Live is on.
 
-## Projektstruktur
+## Project structure
 
 ```
-printer/             Das Plugin (wird so in Photoshop geladen)
-  manifest.json      Plugin-Beschreibung
-  index.html         Panel-Oberfläche
-  main.js            Photoshop-Anbindung (Gruppe, Vorschau, Live, Prüfen, Selbsttest)
-  core.js            Druckfehler-Engine und Ebenen-Simulation, reines JavaScript
-install-mac.sh       Packt das Plugin (.ccx) und installiert es
-tools/               Test-Renderer und Generator für die Bilder dieser README
-docs/images/         Beispielbilder
+printer/             The plugin (loaded into Photoshop as is)
+  manifest.json      Plugin description
+  index.html         Panel UI
+  ms-ui.js/.css      Shared Morgenstern controls and design
+  main.js            Photoshop side (group, preview, Live, verify, self-test)
+  core.js            Print defect engine and layer simulation, plain JavaScript
+install-mac.sh       Packs the plugin (.ccx) and installs it
+tools/               Test renderer, README image generator, browser preview of the panel
+docs/images/         Example images
 ```
 
 ```bash
-node tools/render-test.js test.png      # alle Druckfehler ohne Photoshop rendern
-python3 tools/make-showcase.py          # Bilder dieser README neu erzeugen (braucht Pillow)
+node tools/render-test.js test.png      # render every defect without Photoshop
+python3 tools/make-showcase.py          # rebuild the images of this README (needs Pillow)
 ```
 
-Im Panel prüft **Selbsttest** 84 Fälle automatisch gegen das echte Photoshop-Ergebnis.
+In the panel, **Self-test** automatically checks 84 cases against the real Photoshop result.
 
-## Fehler gefunden? Ideen?
+## Found a bug? Got an idea?
 
-Melde dich gern! Am einfachsten über **[Issues](https://github.com/M0rgenst3rn/ms-printer/issues)** hier auf GitHub:
-**New issue** klicken und kurz beschreiben, was passiert ist. Hilfreich sind Photoshop-Version, Betriebssystem
-und gern ein Screenshot. Dafür brauchst du nur ein kostenloses GitHub-Konto. Verbesserungsvorschläge und
-Wünsche für neue Funktionen sind genauso willkommen.
+Get in touch! The easiest way is **[Issues](https://github.com/M0rgenst3rn/ms-printer/issues)** here on GitHub:
+click **New issue** and briefly describe what happened. Your Photoshop version, operating system and a
+screenshot help a lot. All you need is a free GitHub account. Suggestions and feature requests are just as
+welcome.
 
-## Lizenz
+## License
 
-[MIT](LICENSE): Du darfst den Code frei ansehen, verändern, weitergeben und auch kommerziell nutzen.
-Einzige Bedingung: Der Lizenzhinweis bleibt in Kopien enthalten.
+[MIT](LICENSE): you may freely read, change, share and also use the code commercially.
+The only condition: the license notice stays in copies.
 
-Adobe und Photoshop sind Marken von Adobe Inc. Dieses Projekt ist unabhängig und steht in keiner
-Verbindung zu Adobe.
+Adobe and Photoshop are trademarks of Adobe Inc. This project is independent and not affiliated with Adobe.
 
 ---
 
 <p align="center"><sub>Morgenstern Printer<br>
-Entwickelt von Linus Leinberger</sub></p>
+Made by Linus Leinberger</sub></p>

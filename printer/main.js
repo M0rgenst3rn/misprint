@@ -1,8 +1,8 @@
 "use strict";
 // MS Printer – Photoshop-UXP-Panel.
-// Lässt das GANZE Dokument aussehen wie gedruckt: legt oben eine Gruppe „MS Printer“ mit echten
-// Textur-Ebenen an (Toner, Aussetzer, Papierstruktur, Papierton) – prozedural und auf das Dokument
-// abgestimmt (Toner-Schmutz auf Papier, Aussetzer nur im Druck).
+// Makes the WHOLE document look printed: creates a group "MS Printer" on top with real
+// texture layers (toner, dropouts, paper texture, paper tone) – procedural and matched to the document
+// (toner dirt on paper, dropouts only in the print).
 
 const { app, core, action, imaging } = require("photoshop");
 const { batchPlay } = action;
@@ -15,43 +15,45 @@ const $ = (id) => document.getElementById(id);
 const STORE_KEY = "msprinter.state.v2";
 const PRESET_KEY = "msprinter.presets.v2";
 const GROUP_NAME = "MS Printer";
-const L = { dropout: "Aussetzer", toner: "Toner", paper: "Papierstruktur", tone: "Papierton" };
+const L = { dropout: "Dropouts", toner: "Toner", paper: "Paper texture", tone: "Paper tone" };
+// layer names of earlier (German) versions – still recognised as MS Printer layers
+const L_OLD = ["Aussetzer", "Papierstruktur", "Papierton"];
 const HIST = "MS Printer";
 
 const BUILTIN_PRESETS = {
-  "Fotokopie": { texture: "copygrain", toner: 25, dropout: 18, grain: 30, paperDirt: 45, paperGrain: 25 },
-  "Fotokopie – 3. Generation": { texture: "copy3", scale: 120, toner: 38, dropout: 30, grain: 50, paperDirt: 70, paperGrain: 35, softness: 8 },
-  "Fotokopie – kaputt": { texture: "copy5", scale: 140, toner: 45, dropout: 40, grain: 60, paperDirt: 90, texture2: "glassdust", texture2Mix: 60, texture2Mode: "add" },
-  "Laserdrucker – Toner leer": { texture: "lowtoner", scale: 120, toner: 6, dropout: 45, grain: 30, paperDirt: 10, softness: 20 },
-  "Laserdrucker – Streifen": { texture: "drumstreaks", toner: 30, dropout: 15, grain: 20, paperDirt: 60 },
-  "Riso – Fleckig": { texture: "risomottle", scale: 130, toner: 10, dropout: 38, grain: 25, inkColor: "#2b2236", tonerOpacity: 60, paperGrain: 40, paperTone: 35 },
-  "Riso – Korn": { texture: "riso", toner: 12, dropout: 30, grain: 35, paperGrain: 35, paperTone: 25 },
-  "Zeitungsdruck": { texture: "newsprint", toner: 20, dropout: 25, grain: 15, paperGrain: 40, paperTone: 45, paperToneColor: "#e9e1cc" },
-  "Siebdruck": { texture: "mesh", scale: 90, toner: 8, dropout: 30, grain: 10, paperGrain: 30 },
-  "Inkjet billig": { texture: "inkband", toner: 15, dropout: 25, grain: 20, texture2: "nozzle", texture2Mix: 70, texture2Mode: "add" },
+  "Photocopy": { texture: "copygrain", toner: 25, dropout: 18, grain: 30, paperDirt: 45, paperGrain: 25 },
+  "Photocopy – 3rd generation": { texture: "copy3", scale: 120, toner: 38, dropout: 30, grain: 50, paperDirt: 70, paperGrain: 35, softness: 8 },
+  "Photocopy – broken": { texture: "copy5", scale: 140, toner: 45, dropout: 40, grain: 60, paperDirt: 90, texture2: "glassdust", texture2Mix: 60, texture2Mode: "add" },
+  "Laser printer – low toner": { texture: "lowtoner", scale: 120, toner: 6, dropout: 45, grain: 30, paperDirt: 10, softness: 20 },
+  "Laser printer – streaks": { texture: "drumstreaks", toner: 30, dropout: 15, grain: 20, paperDirt: 60 },
+  "Riso – mottled": { texture: "risomottle", scale: 130, toner: 10, dropout: 38, grain: 25, inkColor: "#2b2236", tonerOpacity: 60, paperGrain: 40, paperTone: 35 },
+  "Riso – grain": { texture: "riso", toner: 12, dropout: 30, grain: 35, paperGrain: 35, paperTone: 25 },
+  "Newsprint": { texture: "newsprint", toner: 20, dropout: 25, grain: 15, paperGrain: 40, paperTone: 45, paperToneColor: "#e9e1cc" },
+  "Screen print": { texture: "mesh", scale: 90, toner: 8, dropout: 30, grain: 10, paperGrain: 30 },
+  "Cheap inkjet": { texture: "inkband", toner: 15, dropout: 25, grain: 20, texture2: "nozzle", texture2Mix: 70, texture2Mode: "add" },
   "Fax": { texture: "fax", toner: 35, dropout: 30, grain: 35, paperDirt: 60, paperTone: 20, paperToneColor: "#ecebe4" },
-  "Kassenbon": { texture: "receipt", toner: 10, dropout: 40, grain: 25, fadeAmount: 60, fadeStyle: "bottom", paperTone: 15 },
-  "Nadeldrucker": { texture: "dotmatrix", scale: 80, toner: 12, dropout: 45, grain: 10 },
-  "Altes Papier": { texture: "paper", toner: 8, dropout: 12, grain: 15, paperGrain: 70, paperTone: 60, paperToneColor: "#e8d9b5", fadeAmount: 50, fadeStyle: "frame" },
+  "Receipt": { texture: "receipt", toner: 10, dropout: 40, grain: 25, fadeAmount: 60, fadeStyle: "bottom", paperTone: 15 },
+  "Dot matrix": { texture: "dotmatrix", scale: 80, toner: 12, dropout: 45, grain: 10 },
+  "Old paper": { texture: "paper", toner: 8, dropout: 12, grain: 15, paperGrain: 70, paperTone: 60, paperToneColor: "#e8d9b5", fadeAmount: 50, fadeStyle: "frame" },
 };
 
 const SLIDERS = [
-  { key: "strength", label: "Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secStrengthTop" },
-  { key: "scale", label: "Größe", min: 10, max: 500, step: 1, unit: "%", parent: "secTexture" },
-  { key: "rotation", label: "Winkel", min: 0, max: 360, step: 1, unit: "°", parent: "secFineTex" },
-  { key: "grainSize", label: "Korngröße", min: 0.5, max: 8, step: 0.5, unit: "px", parent: "secFineTex" },
-  { key: "texture2Mix", label: "Anteil", min: 0, max: 100, step: 1, unit: "%", parent: "secTexture2" },
-  { key: "texture2Scale", label: "Größe", min: 10, max: 500, step: 1, unit: "%", parent: "secTexture2" },
-  { key: "toner", label: "Menge", min: 0, max: 100, step: 1, unit: "%", parent: "secToner" },
-  { key: "tonerOpacity", label: "Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secFineToner" },
-  { key: "paperDirt", label: "Schmutz auf Papier", min: 0, max: 100, step: 1, unit: "%", parent: "secFineToner" },
-  { key: "dropout", label: "Menge", min: 0, max: 100, step: 1, unit: "%", parent: "secDropout" },
-  { key: "dropoutOpacity", label: "Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secFineDropout" },
-  { key: "paperGrain", label: "Struktur", min: 0, max: 100, step: 1, unit: "%", parent: "secFinePaper" },
-  { key: "paperTone", label: "Papierton", min: 0, max: 100, step: 1, unit: "%", parent: "secPaper" },
-  { key: "grain", label: "Körnung", min: 0, max: 100, step: 1, unit: "%", parent: "secPaper" },
-  { key: "softness", label: "Weichheit", min: 0, max: 100, step: 1, unit: "%", parent: "secFinePaper" },
-  { key: "fadeAmount", label: "Stärke", min: 0, max: 100, step: 1, unit: "%", parent: "secFade" },
+  { key: "strength", label: "Opacity", min: 0, max: 100, step: 1, unit: "%", parent: "secStrengthTop" },
+  { key: "scale", label: "Size", min: 10, max: 500, step: 1, unit: "%", parent: "secTexture" },
+  { key: "rotation", label: "Angle", min: 0, max: 360, step: 1, unit: "°", parent: "secFineTex" },
+  { key: "grainSize", label: "Grain size", min: 0.5, max: 8, step: 0.5, unit: "px", parent: "secFineTex" },
+  { key: "texture2Mix", label: "Mix", min: 0, max: 100, step: 1, unit: "%", parent: "secTexture2" },
+  { key: "texture2Scale", label: "Size", min: 10, max: 500, step: 1, unit: "%", parent: "secTexture2" },
+  { key: "toner", label: "Amount", min: 0, max: 100, step: 1, unit: "%", parent: "secToner" },
+  { key: "tonerOpacity", label: "Opacity", min: 0, max: 100, step: 1, unit: "%", parent: "secFineToner" },
+  { key: "paperDirt", label: "Dirt on paper", min: 0, max: 100, step: 1, unit: "%", parent: "secFineToner" },
+  { key: "dropout", label: "Amount", min: 0, max: 100, step: 1, unit: "%", parent: "secDropout" },
+  { key: "dropoutOpacity", label: "Opacity", min: 0, max: 100, step: 1, unit: "%", parent: "secFineDropout" },
+  { key: "paperGrain", label: "Texture", min: 0, max: 100, step: 1, unit: "%", parent: "secFinePaper" },
+  { key: "paperTone", label: "Paper tone", min: 0, max: 100, step: 1, unit: "%", parent: "secPaper" },
+  { key: "grain", label: "Grain", min: 0, max: 100, step: 1, unit: "%", parent: "secPaper" },
+  { key: "softness", label: "Softness", min: 0, max: 100, step: 1, unit: "%", parent: "secFinePaper" },
+  { key: "fadeAmount", label: "Amount", min: 0, max: 100, step: 1, unit: "%", parent: "secFade" },
 ];
 const COLOR_KEYS = ["inkColor", "paperColor", "paperToneColor"];
 
@@ -69,7 +71,7 @@ function texLabel(id) {
   return t ? t.name : "";
 }
 
-// ---------------------------------------------------------------- Persistenz
+// ---------------------------------------------------------------- Persistence
 
 function loadParams() {
   try { return Object.assign({}, Core.DEFAULTS, JSON.parse(localStorage.getItem(STORE_KEY) || "{}")); }
@@ -79,7 +81,7 @@ function saveParams() { try { localStorage.setItem(STORE_KEY, JSON.stringify(par
 function loadUserPresets() { try { return JSON.parse(localStorage.getItem(PRESET_KEY) || "{}"); } catch (e) { return {}; } }
 function saveUserPresets(p) { try { localStorage.setItem(PRESET_KEY, JSON.stringify(p)); } catch (e) { /* egal */ } }
 
-// ---------------------------------------------------------------- Helfer
+// ---------------------------------------------------------------- Helpers
 
 function setStatus(msg, isErr) {
   const el = $("status");
@@ -114,12 +116,12 @@ async function selectLayers(ids) {
   if (cmds.length) await batchPlay(cmds, {});
 }
 function findGroups(doc) { return doc.layers.filter((l) => l.name === GROUP_NAME && l.layers); }
-// Lose MS-Printer-Ebenen außerhalb der Gruppe (dürfen nie übrig bleiben)
+// loose MS Printer layers outside the group (must never be left over)
 function strayLayers(doc) {
-  const names = Object.values(L);
+  const names = Object.values(L).concat(L_OLD);
   return doc.layers.filter((l) => !l.layers && names.indexOf(l.name) >= 0);
 }
-// Gruppe MIT Inhalt löschen – Layer.delete() auf einer Gruppe lässt die Kinder sonst stehen
+// delete a group WITH its content – Layer.delete() on a group otherwise leaves the children behind
 async function deleteGroups(doc) {
   for (const g of findGroups(doc)) {
     for (const c of g.layers.slice()) await c.delete();
@@ -149,7 +151,7 @@ function fromBuf8(buf, doc) {
 }
 function anyNonZero(a) { for (let i = 0; i < a.length; i++) if (a[i]) return true; return false; }
 
-// Liest das Dokument OHNE die MS-Printer-Gruppe (Gruppe kurz ausblenden, Protokoll zurückrollen).
+// Reads the document WITHOUT the MS Printer group (hide the group briefly, roll the history back).
 async function readComposite(ctx, doc, sourceBounds, targetSize) {
   const groups = findGroups(doc).filter((g) => g.visible);
   let hid = null;
@@ -171,7 +173,7 @@ async function readComposite(ctx, doc, sourceBounds, targetSize) {
   }
 }
 
-// ---------------------------------------------------------------- Protokoll
+// ---------------------------------------------------------------- Log
 
 const logLines = [];
 let logWriteTimer = null;
@@ -185,7 +187,7 @@ function log(msg, data) {
       const folder = await lfs.getDataFolder();
       const f = await folder.createFile("printer-log.txt", { overwrite: true });
       await f.write(logLines.join("\n") + "\n");
-    } catch (e) { console.log("Log nicht schreibbar", e); }
+    } catch (e) { console.log("log not writable", e); }
   }, 300);
 }
 function effectiveParams(p) {
@@ -196,7 +198,7 @@ function effectiveParams(p) {
 function diffParams(a, b) { return Object.keys(a).filter((k) => JSON.stringify(a[k]) !== JSON.stringify(b[k])); }
 const lastApplied = new Map(); // docId -> Parameter
 
-// ---------------------------------------------------------------- Bedienelemente (Morgenstern-Design, ms-ui.js)
+// ---------------------------------------------------------------- Controls (Morgenstern design, ms-ui.js)
 
 function buildSliders() {
   for (const s of SLIDERS) {
@@ -208,8 +210,8 @@ function buildSliders() {
   }
 }
 
-// Druckfehler: Kategorie wählen, dann Kachel. „Haupt“ setzt den ersten, „Zweiter“ den zweiten Druckfehler.
-const SCANS = "Eigene Scans";
+// print defects: pick a category, then a tile. "Main" sets the first, "Second" the second defect.
+const SCANS = "Your scans";
 let texSlot = "1";
 let texGroup = null;
 const thumbCache = {};
@@ -226,7 +228,7 @@ function buildTextureGrid() {
     tile.dataset.id = t.id;
     tile.title = t.name;
     tile.innerHTML = t.id === "__add"
-      ? `<div class="ph add">+</div><div class="lbl">Scan laden…</div>`
+      ? `<div class="ph add">+</div><div class="lbl">Load scan…</div>`
       : (thumbCache[t.id] ? `<img src="${thumbCache[t.id]}">` : `<div class="ph"></div>`) + `<div class="lbl">${UI.esc(t.name)}</div>`;
     tile.addEventListener("click", () => {
       if (t.id === "__add") return importImageTextures();
@@ -235,7 +237,7 @@ function buildTextureGrid() {
     });
     grid.appendChild(tile);
   };
-  if (texGroup === SCANS) { for (const t of imageTextures) addTile(t); addTile({ id: "__add", name: "Scan laden" }); }
+  if (texGroup === SCANS) { for (const t of imageTextures) addTile(t); addTile({ id: "__add", name: "Load scan" }); }
   else for (const n of Core.NOISES) if (n.group === texGroup) addTile(n);
   syncUI();
   renderThumbs();
@@ -258,7 +260,7 @@ async function renderThumbs() {
         img.src = thumbCache[t.id];
         tile.replaceChild(img, tile.firstChild);
       }
-    } catch (e) { console.log("Thumb-Fehler", t.id, e); return; }
+    } catch (e) { console.log("thumb error", t.id, e); return; }
   }
 }
 
@@ -279,7 +281,7 @@ function buildSelects() {
   UI.seg($("texture2ModeSeg"), Core.MIX_MODES.map((m) => ({ id: m.id, name: m.name.replace(/ \(.*\)$/, ""), tip: m.name })), pick("texture2Mode"));
   UI.seg($("tonerBlendSeg"), Core.BLEND_MODES, pick("tonerBlend"));
   UI.seg($("dropoutBlendSeg"), Core.LIGHT_MODES, pick("dropoutBlend"));
-  UI.seg($("slotSeg"), [{ id: "1", name: "Haupt" }, { id: "2", name: "Zweiter" }], (v) => {
+  UI.seg($("slotSeg"), [{ id: "1", name: "Main" }, { id: "2", name: "Second" }], (v) => {
     texSlot = v;
     const id = v === "2" ? params.texture2 : params.texture;
     if (id && groupOf(id) !== texGroup) { texGroup = groupOf(id); buildTextureGrid(); } else syncUI();
@@ -287,11 +289,11 @@ function buildSelects() {
   UI.seg($("lookList"), Object.keys(BUILTIN_PRESETS).map((n) => ({ id: n, name: n })), (n) => {
     params = Object.assign({}, Core.DEFAULTS, { seed: params.seed, strength: params.strength }, BUILTIN_PRESETS[n]);
     texSlot = "1"; texGroup = groupOf(params.texture); buildTextureGrid(); changed();
-    setStatus(`Look „${n}“ – alle Regler bleiben frei einstellbar.`);
+    setStatus(`Look "${n}" – every slider stays adjustable.`);
   });
   rebuildPresetSelect();
 }
-// eingebaute Looks: aktiv, solange alle Werte dazu passen
+// built-in looks: active as long as every value matches
 function activeLook() {
   for (const n of Object.keys(BUILTIN_PRESETS)) {
     const ref = Object.assign({}, Core.DEFAULTS, BUILTIN_PRESETS[n]);
@@ -299,13 +301,13 @@ function activeLook() {
   }
   return "";
 }
-function buildTexture2Select() { /* zweiter Druckfehler wird über die Kacheln gewählt */ }
+function buildTexture2Select() { /* the second defect is picked with the tiles */ }
 
-// eigene Presets als Liste: Klick lädt, × löscht
+// own presets as a list: click loads, × deletes
 function rebuildPresetSelect() {
   UI.presetList($("presetList"), Object.keys(loadUserPresets()),
-    (n) => { params = Object.assign({}, Core.DEFAULTS, { seed: params.seed }, loadUserPresets()[n]); texGroup = groupOf(params.texture); buildTextureGrid(); changed(); setStatus(`Preset „${n}“ geladen.`); },
-    (n) => { const u = loadUserPresets(); delete u[n]; saveUserPresets(u); rebuildPresetSelect(); setStatus(`Preset „${n}“ gelöscht.`); });
+    (n) => { params = Object.assign({}, Core.DEFAULTS, { seed: params.seed }, loadUserPresets()[n]); texGroup = groupOf(params.texture); buildTextureGrid(); changed(); setStatus(`Preset "${n}" loaded.`); },
+    (n) => { const u = loadUserPresets(); delete u[n]; saveUserPresets(u); rebuildPresetSelect(); setStatus(`Preset "${n}" deleted.`); });
 }
 
 function syncUI() {
@@ -359,7 +361,7 @@ function bindControls() {
   UI.bindSwitch("liveCanvas", (on) => {
     liveLast = null;
     if (on) applyPrint(true);
-    else setStatus("Live aus – der aktuelle Stand bleibt im Dokument.");
+    else setStatus("Live off – the current state stays in the document.");
   });
   $("clearTex2").addEventListener("click", () => { params.texture2 = ""; syncUI(); changed(); });
   $("deleteImgTex").addEventListener("click", () => deleteImageTexture(params.texture));
@@ -388,13 +390,13 @@ function bindControls() {
   $("refreshPreview").addEventListener("click", () => refreshPreviewSource());
   $("presetSave").addEventListener("click", () => {
     const name = String($("presetName").value || "").trim();
-    if (!name) return setStatus("Gib dem Preset zuerst einen Namen.", true);
+    if (!name) return setStatus("Give the preset a name first.", true);
     const user = loadUserPresets();
     user[name] = Object.assign({}, params);
     saveUserPresets(user);
     rebuildPresetSelect();
     $("presetName").value = "";
-    setStatus(`Preset „${name}“ gespeichert.`);
+    setStatus(`Preset "${name}" saved.`);
   });
   $("resetAll").addEventListener("click", () => { params = Object.assign({}, Core.DEFAULTS); syncUI(); changed(); });
   $("apply").addEventListener("click", () => applyPrint(false));
@@ -418,8 +420,8 @@ function showSyncHint() {
     const applied = lastApplied.get(doc.id);
     if (!applied) return;
     const diff = diffParams(effectiveParams(params), applied);
-    if (diff.length) setStatus(`● Noch nicht im Dokument: ${diff.join(", ")} – „Anwenden“ klicken oder Live einschalten.`);
-    else setStatus("Dokument entspricht den Einstellungen.");
+    if (diff.length) setStatus(`● Not in the document yet: ${diff.join(", ")} – click "Apply" or turn on Live.`);
+    else setStatus("Document matches the settings.");
   } catch (e) { /* egal */ }
 }
 
@@ -432,26 +434,26 @@ async function pickColor(key) {
         _obj: "showColorPicker", _target: { _ref: "application" }, context: "MS Printer",
         color: { _obj: "RGBColor", red: c0.r, grain: c0.g, blue: c0.b },
       }], {});
-    }, { commandName: "Farbe wählen" });
+    }, { commandName: "Pick colour" });
     const c = res && res[0] && (res[0].RGBFloatColor || res[0].color);
     if (c && c.red !== undefined) {
       params[key] = rgbToHex(c.red, c.grain !== undefined ? c.grain : c.green, c.blue);
       syncUI(); changed();
     }
   } catch (e) {
-    setStatus("Farbwähler nicht verfügbar – Hex-Wert eintippen.", true);
+    setStatus("Colour picker not available – type a hex value.", true);
   }
 }
 
-// ---------------------------------------------------------------- Vorschau
-// "Ganzes Dokument": verkleinert. "Detail 1:1": Ausschnitt aus der Mitte in Originalgröße,
-// damit man das echte Korn sieht.
+// ---------------------------------------------------------------- Preview
+// "Fit": downsampled. "1:1": a region from the centre at original size,
+// so you see the real grain.
 
 async function refreshPreviewSource() {
   if (busy) return;
   const doc = app.activeDocument;
-  if (!doc) { previewSrc = null; $("docName").textContent = "–"; return renderPreview("Kein Dokument geöffnet."); }
-  $("docName").textContent = doc.name || "Dokument";
+  if (!doc) { previewSrc = null; $("docName").textContent = "–"; return renderPreview("No document open."); }
+  $("docName").textContent = doc.name || "Document";
   const full = docBounds(doc);
   let b = full, ts = null;
   if (previewMode === "detail") {
@@ -475,14 +477,14 @@ async function refreshPreviewSource() {
       const cov = Core.coverageFromRGBA(c.raw, c.comps, n), luma = Core.lumaFromRGBA(c.raw, c.comps, n);
       src = { mode: previewMode, docId: doc.id, w: c.w, h: c.h, rgba, cov, luma, info: Core.analyzeDocument(luma, cov),
         sb: c.sb, full, pxScale: (c.sb.right - c.sb.left) / c.w };
-    }, { commandName: HIST + " Vorschau" });
+    }, { commandName: HIST + " preview" });
     ignoreEventsUntil = Date.now() + 600;
     previewSrc = src;
     renderPreview();
     if (src.mode === "fit") showDocInfo(src.info);
   } catch (e) {
     previewSrc = null;
-    renderPreview("Vorschau nicht möglich: " + (e.message || e));
+    renderPreview("Preview not possible: " + (e.message || e));
   }
 }
 
@@ -498,7 +500,7 @@ async function renderPreview(msg) {
   const img = $("preview"), m = $("previewMsg");
   if (msg || !previewSrc) {
     img.className = "hidden"; m.className = "preview-msg";
-    m.textContent = msg || "Dokument öffnen…";
+    m.textContent = msg || "Open a document…";
     return;
   }
   const token = ++previewToken;
@@ -517,17 +519,17 @@ async function renderPreview(msg) {
     img.className = ""; m.className = "hidden";
   } catch (e) {
     img.className = "hidden"; m.className = "preview-msg";
-    m.textContent = "Vorschau benötigt Photoshop 24.2 oder neuer.";
+    m.textContent = "The preview needs Photoshop 24.2 or newer.";
   }
 }
-// Kurzinfo, wie MS Printer das Dokument einschätzt
+// short note on how MS Printer reads the document
 function showDocInfo(info) {
   if (!info || busy) return;
   const dark = Math.round(info.darkShare * 100);
   if (!params.autoAdapt) return;
-  if (dark > 60) setStatus(`Dokument ist überwiegend dunkel (${dark} %) – Fehler erscheinen als helle Fehlstellen.`);
-  else if (dark > 20) setStatus(`Gemischtes Dokument (${dark} % dunkel) – hell auf dunklen, dunkel auf hellen Flächen.`);
-  else setStatus(`Helles Dokument – Fehler erscheinen als Toner und Aussetzer.`);
+  if (dark > 60) setStatus(`Document is mostly dark (${dark} %) – defects appear as light spots.`);
+  else if (dark > 20) setStatus(`Mixed document (${dark} % dark) – light on dark areas, dark on light areas.`);
+  else setStatus(`Light document – defects appear as toner and dropouts.`);
 }
 
 function stripAlpha(rgba) {
@@ -536,7 +538,7 @@ function stripAlpha(rgba) {
   return out;
 }
 
-// ---------------------------------------------------------------- Eigene Scans
+// ---------------------------------------------------------------- Your scans
 
 const TEX_MAX = 2048;
 async function texFolder() {
@@ -557,20 +559,20 @@ async function loadImageTextures() {
       try {
         const buf = await (await folder.getEntry(t.file)).read({ format: uxpStorage.formats.binary });
         imageTextures.push(Object.assign({}, t, { data: new Uint8Array(buf) }));
-      } catch (e) { console.log("Textur fehlt", t.file); }
+      } catch (e) { console.log("texture missing", t.file); }
     }
-  } catch (e) { console.log("Textur-Bibliothek nicht lesbar", e); }
+  } catch (e) { console.log("texture library not readable", e); }
 }
 async function importImageTextures() {
   if (busy) return;
   let files;
   try {
     files = await lfs.getFileForOpening({ allowMultiple: true, types: ["png", "jpg", "jpeg", "tif", "tiff", "psd", "webp", "bmp", "gif"] });
-  } catch (e) { return setStatus("Dateiauswahl nicht möglich: " + (e.message || e), true); }
+  } catch (e) { return setStatus("File picker not available: " + (e.message || e), true); }
   const list = !files ? [] : Array.isArray(files) ? files : [files];
   if (!list.length) return;
   busy = true;
-  setStatus(`Importiere ${list.length} Scan(s)…`);
+  setStatus(`Importing ${list.length} scan(s)…`);
   const added = [];
   const prevDoc = app.activeDocument;
   try {
@@ -591,7 +593,7 @@ async function importImageTextures() {
           for (let i = 0; i < n; i++) {
             const a = comps >= 4 ? raw[i * comps + 3] / 255 : 1;
             const lum = (0.299 * raw[i * comps] + 0.587 * raw[i * comps + 1] + 0.114 * raw[i * comps + 2]) * a + 255 * (1 - a);
-            data[i] = 255 - Math.round(lum); // 255 = dunkel (Toner)
+            data[i] = 255 - Math.round(lum); // 255 = dark (toner)
           }
           tex = { w: id.width, h: id.height, data };
           id.dispose();
@@ -599,7 +601,7 @@ async function importImageTextures() {
           await d.closeWithoutSaving();
           if (prevDoc) { try { app.activeDocument = prevDoc; } catch (e) { /* egal */ } }
         }
-      }, { commandName: HIST + " Scan importieren" });
+      }, { commandName: HIST + " import scan" });
       if (!tex) continue;
       const id = "img:" + Date.now().toString(36) + Math.floor(Math.random() * 1e5).toString(36);
       const fileName = id.slice(4) + ".bin";
@@ -611,13 +613,13 @@ async function importImageTextures() {
     }
     await saveTextureIndex();
   } catch (e) {
-    setStatus("Import fehlgeschlagen: " + (e.message || e), true);
+    setStatus("Import failed: " + (e.message || e), true);
   }
   busy = false;
   if (added.length) {
     params.texture = added[added.length - 1].id;
     buildTextureGrid(); buildTexture2Select(); syncUI(); changed();
-    setStatus(`${added.length} Scan(s) hinzugefügt.`);
+    setStatus(`${added.length} scan(s) added.`);
   }
 }
 async function deleteImageTexture(id) {
@@ -629,12 +631,12 @@ async function deleteImageTexture(id) {
   if (params.texture === id) params.texture = "copygrain";
   if (params.texture2 === id) params.texture2 = "";
   buildTextureGrid(); buildTexture2Select(); syncUI(); changed();
-  setStatus(`Scan „${t.name}“ gelöscht.`);
+  setStatus(`Scan "${t.name}" deleted.`);
 }
 
-// ---------------------------------------------------------------- Anwenden / Entfernen
+// ---------------------------------------------------------------- Apply / remove
 
-// Berechnet die Ebenen-Inhalte für das ganze Dokument (ohne bestehende MS-Printer-Gruppe)
+// Computes the layer contents for the whole document (without an existing MS Printer group)
 async function computeForDocument(ctx, doc, p) {
   const b = docBounds(doc);
   const c = await readComposite(ctx, doc, b, null);
@@ -678,7 +680,7 @@ async function applyToDocument(ctx, doc, p) {
   const { out, w, h } = await computeForDocument(ctx, doc, p);
   const n = w * h;
   const made = [];
-  // ganz oben anfangen; jede neue Ebene landet über der vorherigen
+  // start at the very top; each new layer lands above the previous one
   if (doc.layers[0]) await selectLayer(doc.layers[0].id);
   if (p.paperTone > 0) made.push(await makeTextureLayer(doc, L.tone, solidRGBA(n, hexToRgb(p.paperToneColor)), w, h, "multiply", p.paperTone));
   if (out.paper) made.push(await makeTextureLayer(doc, L.paper, grayRGBA(out.paper), w, h, "softLight", 100));
@@ -688,11 +690,11 @@ async function applyToDocument(ctx, doc, p) {
     await selectLayers(made);
     await batchPlay([{ _obj: "make", _target: [{ _ref: "layerSection" }], from: { _ref: "layer", _enum: "ordinal", _value: "targetEnum" }, name: GROUP_NAME }], {});
     await batchPlay([{ _obj: "set", _target: TARGET, to: { _obj: "layer", name: GROUP_NAME } }], {});
-    // Gesamt-Deckkraft direkt an der Gruppe setzen (per batchPlay auf eine frische Gruppe wird sie ignoriert)
+    // set the overall opacity directly on the group (via batchPlay on a fresh group it is ignored)
     const g = findGroups(doc)[0];
     if (g) g.opacity = p.strength;
   }
-  log("  Gruppe", { ebenen: made.length, breite: w, hoehe: h });
+  log("  group", { layers: made.length, width: w, height: h });
   lastApplied.set(doc.id, effectiveParams(p));
 }
 
@@ -706,30 +708,30 @@ async function applyPrint(live) {
   live = live === true;
   if (busy) { if (live) livePending = true; return; }
   const doc = app.activeDocument;
-  if (!doc) return setStatus("Kein Dokument geöffnet.", true);
+  if (!doc) return setStatus("No document open.", true);
   busy = true;
   setStatus(live ? "Live-Update…" : "Erzeuge Druck-Look…");
   const t0 = Date.now();
   let error = null;
   const replaceLast = live && liveLast && liveLast.docId === doc.id && liveLast.stateId !== null && liveLast.stateId === historyStateId(doc);
-  log(live ? "LIVE" : "ANWENDEN", { ersetztLetztenSchritt: !!replaceLast, params: effectiveParams(params) });
+  log(live ? "LIVE" : "APPLY", { replacesLastStep: !!replaceLast, params: effectiveParams(params) });
   try {
     await core.executeAsModal(async (ctx) => {
       if (replaceLast) await batchPlay([{ _obj: "select", _target: [{ _ref: "historyState", _enum: "ordinal", _value: "previous" }] }], {});
       const hid = await ctx.hostControl.suspendHistory({ documentID: doc.id, name: live ? HIST + " Live" : HIST });
       try { await applyToDocument(ctx, doc, Object.assign({}, params)); }
       finally { await ctx.hostControl.resumeHistory(hid); }
-    }, { commandName: HIST + " anwenden" });
+    }, { commandName: HIST + " apply" });
   } catch (e) {
     error = e.message || String(e);
   }
   liveLast = live && !error ? { docId: doc.id, stateId: historyStateId(doc) } : null;
-  log("  Ergebnis", { fehler: error, ms: Date.now() - t0 });
+  log("  result", { error, ms: Date.now() - t0 });
   ignoreEventsUntil = Date.now() + 600;
   busy = false;
   const secs = ((Date.now() - t0) / 1000).toFixed(1);
-  if (error) setStatus("Fehler: " + error, true);
-  else setStatus(live ? `Live aktualisiert (${secs}s).` : `Fertig in ${secs}s – Gruppe „${GROUP_NAME}“ liegt oben. Rückgängig mit ⌘Z.`);
+  if (error) setStatus("Error: " + error, true);
+  else setStatus(live ? `Live updated (${secs}s).` : `Done in ${secs}s – group "${GROUP_NAME}" is on top. Undo with ⌘Z.`);
   if (livePending && $("liveCanvas").checked) { livePending = false; applyPrint(true); }
 }
 const debouncedLive = debounce(() => applyPrint(true), 250);
@@ -737,24 +739,24 @@ const debouncedLive = debounce(() => applyPrint(true), 250);
 async function removePrint() {
   if (busy) return;
   const doc = app.activeDocument;
-  if (!doc) return setStatus("Kein Dokument geöffnet.", true);
+  if (!doc) return setStatus("No document open.", true);
   busy = true;
   try {
     await core.executeAsModal(async (ctx) => {
-      const hid = await ctx.hostControl.suspendHistory({ documentID: doc.id, name: HIST + " entfernen" });
+      const hid = await ctx.hostControl.suspendHistory({ documentID: doc.id, name: HIST + " remove" });
       try { await deleteGroups(doc); }
       finally { await ctx.hostControl.resumeHistory(hid); }
-    }, { commandName: HIST + " entfernen" });
+    }, { commandName: HIST + " remove" });
     lastApplied.delete(doc.id);
-    log("ENTFERNEN");
-    setStatus(`Gruppe „${GROUP_NAME}“ entfernt.`);
+    log("REMOVE");
+    setStatus(`Group "${GROUP_NAME}" removed.`);
   } catch (e) {
-    setStatus("Fehler beim Entfernen: " + (e.message || e), true);
+    setStatus("Error while removing: " + (e.message || e), true);
   }
   busy = false;
 }
 
-// ---------------------------------------------------------------- Prüfen
+// ---------------------------------------------------------------- Verify
 
 async function readLayerAlpha(doc, layerId, w, h) {
   const r = await imaging.getPixels({ documentID: doc.id, layerID: layerId, colorSpace: "RGB", componentSize: 8 });
@@ -779,7 +781,7 @@ function compare(exp, act) {
 async function verifyDocument(ctx, doc, p) {
   const r = {};
   const groups = findGroups(doc);
-  r.gruppen = groups.length;
+  r.groups = groups.length;
   const { out, w, h } = await computeForDocument(ctx, doc, p);
   const want = {};
   if (p.paperTone > 0) want[L.tone] = { mode: "multiply", opacity: p.paperTone };
@@ -787,55 +789,55 @@ async function verifyDocument(ctx, doc, p) {
   if (p.tonerEnabled && anyNonZero(out.toner)) want[L.toner] = { mode: p.tonerBlend, opacity: p.tonerOpacity, alpha: out.toner };
   if (p.dropoutEnabled && anyNonZero(out.light)) want[L.dropout] = { mode: p.dropoutBlend, opacity: p.dropoutOpacity, alpha: out.light };
   const names = Object.keys(want);
-  const fail = (m) => { r.fehler = (r.fehler ? r.fehler + ", " : "") + m; };
+  const fail = (m) => { r.errors = (r.errors ? r.errors + ", " : "") + m; };
   const loose = strayLayers(doc).length;
-  if (loose) fail(`${loose} lose MS-Printer-Ebene(n) außerhalb der Gruppe`);
-  if (!names.length) { if (groups.length) fail("Gruppe sollte fehlen"); r.ok = !r.fehler; return r; }
-  if (groups.length !== 1) { fail(groups.length ? "mehrere Gruppen" : "Gruppe fehlt"); r.ok = false; return r; }
+  if (loose) fail(`${loose} loose MS Printer layer(s) outside the group`);
+  if (!names.length) { if (groups.length) fail("group should be missing"); r.ok = !r.errors; return r; }
+  if (groups.length !== 1) { fail(groups.length ? "several groups" : "group missing"); r.ok = false; return r; }
   const g = groups[0];
-  if (doc.layers[0].id !== g.id) fail("Gruppe nicht ganz oben");
-  if (Math.abs(Number(g.opacity) - p.strength) > 1) fail(`Gruppen-Deckkraft ${g.opacity} statt ${p.strength}`);
+  if (doc.layers[0].id !== g.id) fail("group not on top");
+  if (Math.abs(Number(g.opacity) - p.strength) > 1) fail(`group opacity ${g.opacity} instead of ${p.strength}`);
   const kids = g.layers.map((l) => l.name);
-  r.ebenen = kids;
+  r.layers = kids;
   const order = [L.dropout, L.toner, L.paper, L.tone].filter((n) => want[n]);
-  if (JSON.stringify(kids) !== JSON.stringify(order)) fail("Ebenen/Reihenfolge falsch");
+  if (JSON.stringify(kids) !== JSON.stringify(order)) fail("layers/order wrong");
   for (const l of g.layers) {
     const wnt = want[l.name];
     if (!wnt) continue;
     const mode = String(l.blendMode || "").replace(/^BlendMode\./, "");
-    if (mode.toLowerCase() !== wnt.mode.toLowerCase()) fail(`${l.name}: Mischmodus ${mode} statt ${wnt.mode}`);
-    if (Math.abs(Number(l.opacity) - wnt.opacity) > 1) fail(`${l.name}: Deckkraft ${l.opacity} statt ${wnt.opacity}`);
+    if (mode.toLowerCase() !== wnt.mode.toLowerCase()) fail(`${l.name}: blend mode ${mode} instead of ${wnt.mode}`);
+    if (Math.abs(Number(l.opacity) - wnt.opacity) > 1) fail(`${l.name}: opacity ${l.opacity} instead of ${wnt.opacity}`);
     if (wnt.alpha) {
       const dev = compare(wnt.alpha, await readLayerAlpha(doc, l.id, w, h));
-      r[l.name + "Abweichung"] = dev;
+      r[l.name + " deviation"] = dev;
       if (dev > 1) fail(`${l.name}: ${dev}% Pixel anders`);
     }
   }
-  r.ok = !r.fehler;
+  r.ok = !r.errors;
   return r;
 }
 
 async function verifyNow(doc) {
   let r;
-  await core.executeAsModal(async (ctx) => { r = await verifyDocument(ctx, doc, Object.assign({}, params)); }, { commandName: HIST + " prüfen" });
+  await core.executeAsModal(async (ctx) => { r = await verifyDocument(ctx, doc, Object.assign({}, params)); }, { commandName: HIST + " verify" });
   return r;
 }
 
 async function verifyCanvas() {
   if (busy) return;
   const doc = app.activeDocument;
-  if (!doc) return setStatus("Kein Dokument geöffnet.", true);
+  if (!doc) return setStatus("No document open.", true);
   busy = true;
   let r;
-  try { r = await verifyNow(doc); } catch (e) { r = { ok: false, fehler: e.message || String(e) }; }
+  try { r = await verifyNow(doc); } catch (e) { r = { ok: false, errors: e.message || String(e) }; }
   busy = false;
   ignoreEventsUntil = Date.now() + 600;
-  log("PRÜFEN", r);
-  if (r.ok) setStatus("✓ Dokument entspricht den aktuellen Einstellungen.");
-  else setStatus("✗ " + r.fehler + " (Details im Log)", true);
+  log("VERIFY", r);
+  if (r.ok) setStatus("✓ The document matches the current settings.");
+  else setStatus("✗ " + r.errors + " (details in the log)", true);
 }
 
-// ---------------------------------------------------------------- Selbsttest
+// ---------------------------------------------------------------- Self-test
 
 function testArtwork(w, h) {
   const buf = new Uint8Array(w * h * 4);
@@ -859,11 +861,11 @@ async function runSelfTest() {
   const results = [];
   const t0 = Date.now();
   let doc = null;
-  log("SELBSTTEST START");
-  setStatus("Selbsttest läuft… (ca. 1–2 Minuten, bitte nichts anklicken)");
+  log("SELFTEST START");
+  setStatus("Self-test running… (about 1–2 minutes, please don't click)");
   try {
     await core.executeAsModal(async () => {
-      doc = await app.documents.add({ width: 900, height: 520, resolution: 72, mode: "RGBColorMode", fill: "white", name: "MS Printer Selbsttest" });
+      doc = await app.documents.add({ width: 900, height: 520, resolution: 72, mode: "RGBColorMode", fill: "white", name: "MS Printer self-test" });
       await batchPlay([{ _obj: "make", _target: [{ _ref: "layer" }], using: { _obj: "layer", name: "Artwork" } }], {});
       const al = doc.activeLayers[0];
       const id = await imaging.createImageDataFromBuffer(testArtwork(900, 520), { width: 900, height: 520, components: 4, chunky: true, colorSpace: "RGB", colorProfile: "sRGB IEC61966-2.1" });
@@ -876,38 +878,38 @@ async function runSelfTest() {
             textClickPoint: { _obj: "paint", horizontal: { _unit: "percentUnit", _value: 5 }, vertical: { _unit: "percentUnit", _value: 92 } },
             textStyleRange: [{ _obj: "textStyleRange", from: 0, to: 7, textStyle: { _obj: "textStyle", size: { _unit: "pointsUnit", _value: 120 }, color: { _obj: "RGBColor", red: 20, grain: 20, blue: 20 } } }] },
         }], {});
-      } catch (e) { log("  Textebene nicht erstellbar", String(e.message || e)); }
-    }, { commandName: HIST + " Selbsttest vorbereiten" });
+      } catch (e) { log("  text layer could not be created", String(e.message || e)); }
+    }, { commandName: HIST + " prepare self-test" });
 
     const D = Object.assign({}, Core.DEFAULTS, { seed: 4242 });
     const cases = [];
-    for (const n of Core.NOISES) cases.push([`Druckfehler ${n.id}`, { texture: n.id }]);
-    for (const m of Core.MIX_MODES) cases.push([`2. Druckfehler ${m.id}`, { texture2: "drumstreaks", texture2Mix: 70, texture2Mode: m.id }]);
-    for (const f of Core.FADE_STYLES) cases.push([`Verlauf ${f.id}`, { fadeAmount: 80, fadeStyle: f.id }]);
-    for (const b of Core.BLEND_MODES) cases.push([`Toner-Modus ${b.id}`, { tonerBlend: b.id, tonerOpacity: 70 }]);
-    for (const b of Core.LIGHT_MODES) cases.push([`Aussetzer-Modus ${b.id}`, { dropoutBlend: b.id, dropoutOpacity: 60 }]);
-    cases.push(["Schmutz 0", { paperDirt: 0 }]);
-    cases.push(["Schmutz 100", { paperDirt: 100, toner: 50 }]);
-    cases.push(["Papierton + Struktur", { paperTone: 50, paperGrain: 80, paperToneColor: "#e8d9b5" }]);
-    cases.push(["Nur Toner", { dropoutEnabled: false, paperGrain: 0 }]);
-    cases.push(["Nur Aussetzer", { tonerEnabled: false, paperGrain: 0 }]);
-    cases.push(["Alles aus", { tonerEnabled: false, dropoutEnabled: false, paperGrain: 0, paperTone: 0 }]);
-    cases.push(["Wieder alles an", {}]);
-    cases.push(["Tauschen + Winkel", { invert: true, rotation: 30 }]);
-    cases.push(["Gesamt-Deckkraft 10", { strength: 10 }]);
-    cases.push(["Gesamt-Deckkraft 100", { strength: 100 }]);
-    cases.push(["Auto-Anpassung aus", { autoAdapt: false }]);
-    cases.push(["Korngröße 4", { grainSize: 4, grain: 70 }]);
+    for (const n of Core.NOISES) cases.push([`Defect ${n.id}`, { texture: n.id }]);
+    for (const m of Core.MIX_MODES) cases.push([`Second defect ${m.id}`, { texture2: "drumstreaks", texture2Mix: 70, texture2Mode: m.id }]);
+    for (const f of Core.FADE_STYLES) cases.push([`Fade ${f.id}`, { fadeAmount: 80, fadeStyle: f.id }]);
+    for (const b of Core.BLEND_MODES) cases.push([`Toner mode ${b.id}`, { tonerBlend: b.id, tonerOpacity: 70 }]);
+    for (const b of Core.LIGHT_MODES) cases.push([`Dropout mode ${b.id}`, { dropoutBlend: b.id, dropoutOpacity: 60 }]);
+    cases.push(["Dirt 0", { paperDirt: 0 }]);
+    cases.push(["Dirt 100", { paperDirt: 100, toner: 50 }]);
+    cases.push(["Paper tone + texture", { paperTone: 50, paperGrain: 80, paperToneColor: "#e8d9b5" }]);
+    cases.push(["Toner only", { dropoutEnabled: false, paperGrain: 0 }]);
+    cases.push(["Dropouts only", { tonerEnabled: false, paperGrain: 0 }]);
+    cases.push(["Everything off", { tonerEnabled: false, dropoutEnabled: false, paperGrain: 0, paperTone: 0 }]);
+    cases.push(["Everything on again", {}]);
+    cases.push(["Swap + angle", { invert: true, rotation: 30 }]);
+    cases.push(["Overall opacity 10", { strength: 10 }]);
+    cases.push(["Overall opacity 100", { strength: 100 }]);
+    cases.push(["Auto-adapt off", { autoAdapt: false }]);
+    cases.push(["Grain size 4", { grainSize: 4, grain: 70 }]);
 
     for (const [name, over] of cases) {
       params = Object.assign({}, D, over);
       await applyPrint(false);
       const r = await verifyNow(doc);
       results.push({ test: name, ok: r.ok, details: r });
-      setStatus(`Selbsttest: ${results.length}/${cases.length + 5} – ${name}`);
+      setStatus(`Self-test: ${results.length}/${cases.length + 5} – ${name}`);
     }
 
-    // Live: mehrere Updates = ein Protokollschritt
+    // Live: several updates = one history step
     params = Object.assign({}, D, { texture: "riso" });
     liveLast = null;
     const s0 = historyStateId(doc);
@@ -919,38 +921,38 @@ async function runSelfTest() {
     const states = doc.historyStates;
     const ai = states.findIndex((st) => st.id === historyStateId(doc));
     const before = ai > 0 ? states[ai - 1].id : null;
-    results.push({ test: "Live: Protokoll zusammengefasst", ok: before === s0 && states[ai].name === HIST + " Live", details: { s0, before } });
+    results.push({ test: "Live: history combined", ok: before === s0 && states[ai].name === HIST + " Live", details: { s0, before } });
     const rl = await verifyNow(doc);
-    results.push({ test: "Live: Dokument = letzte Einstellung", ok: rl.ok, details: rl });
+    results.push({ test: "Live: document = last setting", ok: rl.ok, details: rl });
 
-    // Rückgängig -> Stand des letzten Testfalls
+    // undo -> state of the last test case
     await core.executeAsModal(async () => {
       await batchPlay([{ _obj: "select", _target: [{ _ref: "historyState", _enum: "ordinal", _value: "previous" }] }], {});
-    }, { commandName: HIST + " Test" });
+    }, { commandName: HIST + " test" });
     liveLast = null;
     params = Object.assign({}, D, cases[cases.length - 1][1]);
     const ru = await verifyNow(doc);
-    results.push({ test: "Rückgängig stellt vorherigen Stand her", ok: ru.ok, details: ru });
+    results.push({ test: "Undo restores the previous state", ok: ru.ok, details: ru });
 
-    // Doppelt anwenden darf keine zweite Gruppe erzeugen
+    // applying twice must not create a second group
     await applyPrint(false);
     await applyPrint(false);
-    results.push({ test: "Erneut anwenden ersetzt Gruppe", ok: findGroups(doc).length === 1 && strayLayers(doc).length === 0 });
+    results.push({ test: "Applying again replaces the group", ok: findGroups(doc).length === 1 && strayLayers(doc).length === 0 });
 
     await removePrint();
     const rest = doc.layers.map((l) => l.name);
-    results.push({ test: "Entfernen hinterlässt nichts", ok: findGroups(doc).length === 0 && strayLayers(doc).length === 0 && rest.length === 3, details: rest });
+    results.push({ test: "Remove leaves nothing", ok: findGroups(doc).length === 0 && strayLayers(doc).length === 0 && rest.length === 3, details: rest });
   } catch (e) {
-    results.push({ test: "Abbruch", ok: false, details: String(e && e.stack || e) });
+    results.push({ test: "Aborted", ok: false, details: String(e && e.stack || e) });
   }
   params = saved;
   $("liveCanvas").checked = wasLive;
   syncUI();
   const failed = results.filter((r) => !r.ok);
-  log("SELBSTTEST ERGEBNIS", { bestanden: results.length - failed.length, gesamt: results.length, sekunden: Math.round((Date.now() - t0) / 1000) });
+  log("SELFTEST RESULT", { passed: results.length - failed.length, total: results.length, seconds: Math.round((Date.now() - t0) / 1000) });
   for (const r of results) log((r.ok ? "  ✓ " : "  ✗ ") + r.test, r.ok ? undefined : r.details);
-  setStatus(`Selbsttest: ${results.length - failed.length}/${results.length} bestanden` +
-    (failed.length ? ` – fehlgeschlagen: ${failed.map((r) => r.test).join(", ")}` : " ✓"), failed.length > 0);
+  setStatus(`Self-test: ${results.length - failed.length}/${results.length} passed` +
+    (failed.length ? ` – failed: ${failed.map((r) => r.test).join(", ")}` : " ✓"), failed.length > 0);
   refreshPreviewSource();
 }
 
@@ -974,12 +976,12 @@ async function init() {
   syncUI();
   try {
     action.addNotificationListener(["select", "make", "delete", "open", "close", "set", "move", "transform", "placedLayerEditContents"], onPsEvent);
-  } catch (e) { console.log("Event-Listener nicht verfügbar", e); }
-  // Entwickler-Hook: eine Datei „run-selftest“ im Datenordner startet den Selbsttest (und wird gelöscht)
+  } catch (e) { console.log("event listener not available", e); }
+  // developer hook: a file "run-selftest" in the data folder starts the self-test (and is deleted)
   let hookRunning = false;
   setInterval(async () => {
     if (busy || hookRunning) return;
-    try { const f = await (await lfs.getDataFolder()).getEntry("run-selftest"); await f.delete(); hookRunning = true; try { await runSelfTest(); } finally { hookRunning = false; } } catch (e) { /* kein Auftrag */ }
+    try { const f = await (await lfs.getDataFolder()).getEntry("run-selftest"); await f.delete(); hookRunning = true; try { await runSelfTest(); } finally { hookRunning = false; } } catch (e) { /* no request */ }
   }, 3000);
   refreshPreviewSource();
 }

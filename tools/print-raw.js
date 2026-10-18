@@ -1,6 +1,6 @@
-// Wendet MS Printer auf ein ganzes Bild an (für Tests und README-Bilder).
-// Aufruf: node tools/print-raw.js <eingabe.rgb> <breite> <höhe> '<params-json>' <ausgabe.rgb>
-// Ein- und Ausgabe: rohe RGB-Daten (3 Byte pro Pixel). Ergebnis = Bild + simulierte Gruppe „MS Printer“.
+// Applies MS Printer to a whole image (for tests and README images).
+// Usage: node tools/print-raw.js <input.rgb> <width> <height> '<params-json>' <output.rgb>
+// Input and output: raw RGB data (3 bytes per pixel). Result = image + simulated group "MS Printer".
 const fs = require("fs");
 const path = require("path");
 const Core = require(path.join(__dirname, "..", "printer", "core.js"));

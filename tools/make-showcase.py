@@ -1,8 +1,8 @@
-"""Erzeugt die Showcase-Bilder für die README (docs/images/).
+"""Builds the showcase images for the README (docs/images/).
 
-Die Motive werden mit Pillow gezeichnet, der Druck-Look kommt aus derselben Engine
-wie im Plugin (printer/core.js via tools/print-raw.js) – inklusive Gesamt-Deckkraft.
-Aufruf: python3 tools/make-showcase.py
+The artwork is drawn with Pillow; the print look comes from the same engine
+as the plugin (printer/core.js via tools/print-raw.js) – including the overall opacity.
+Usage: python3 tools/make-showcase.py
 """
 import json
 import os
@@ -31,7 +31,7 @@ def font(path, size):
 
 
 def printed(img, params):
-    """Wendet MS Printer (ganzes Dokument) auf ein RGB-Bild an."""
+    """Applies MS Printer (whole document) to an RGB image."""
     global _n
     _n += 1
     a = os.path.join(TMP, f"a{_n}.rgb")
@@ -59,7 +59,7 @@ def flyer(w, h, dark=False):
     s = w / 420
     d.text((24 * s, 18 * s), "NIGHT" if dark else "FLYER", font=font(IMPACT, int(110 * s)), fill=fg)
     d.ellipse((24 * s, 160 * s, 144 * s, 280 * s), fill=RED)
-    d.text((170 * s, 175 * s), "Sa. 21 Uhr\nKellerclub", font=font(BLACK, int(30 * s)), fill=fg)
+    d.text((170 * s, 175 * s), "Sat 9 pm\nBasement club", font=font(BLACK, int(30 * s)), fill=fg)
     return im
 
 
@@ -81,21 +81,21 @@ def hero():
     l, t, r, b = f.getbbox("MS PRINTER")
     d.text(((W - (r - l)) // 2 - l, 40 - t), "MS PRINTER", font=f, fill=(232, 62, 140))
     f2 = font(BLACK, 40)
-    txt = "TONER · KOPIERER · RISO · INKJET · RASTER · FAX"
+    txt = "TONER · COPIER · RISO · INKJET · HALFTONE · FAX"
     l, t, r, b = f2.getbbox(txt)
     d.text(((W - (r - l)) // 2 - l, 380), txt, font=f2, fill=INK)
     out = printed(art, {"texture": "riso", "scale": 110, "toner": 22, "dropout": 30, "grain": 35, "paperGrain": 35, "paperTone": 25, "strength": 70, "seed": 12})
     dd = ImageDraw.Draw(out)
-    label(dd, (W // 2, H - 60), "Lässt das ganze Dokument aussehen wie gedruckt – ohne PNG-Texturen, abgestimmt auf dein Motiv", 26, (110, 100, 90), "ma")
+    label(dd, (W // 2, H - 60), "Makes the whole document look printed – without PNG textures, matched to your image", 26, (110, 100, 90), "ma")
     out.save(os.path.join(OUT, "hero.png"), optimize=True)
 
 
-# ------------------------------------------------------------------ Vorher / Nachher (hell + dunkel)
+# ------------------------------------------------------------------ before / after (light + dark)
 def before_after():
     w, h = 640, 457
     rows = [
-        (flyer(w, h), {"texture": "copy3", "scale": 110}, "Helles Motiv"),
-        (flyer(w, h, True), {"texture": "copy3", "scale": 110}, "Dunkles Motiv – Auto-Anpassung zeigt helle Fehlstellen"),
+        (flyer(w, h), {"texture": "copy3", "scale": 110}, "Light image"),
+        (flyer(w, h, True), {"texture": "copy3", "scale": 110}, "Dark image – auto-adapt shows light defects"),
     ]
     W, H = 2 * w + 3 * 20, len(rows) * (h + 50) + 20
     out = Image.new("RGB", (W, H), BG)
@@ -105,11 +105,11 @@ def before_after():
         out.paste(art, (20, y))
         out.paste(printed(art, p), (40 + w, y))
         label(d, (20 + w // 2, y + h + 8), f"{name} · Original", 19, anchor="ma")
-        label(d, (40 + w + w // 2, y + h + 8), "MS Printer · Kopie 3. Gen. · Standard (35 %)", 19, anchor="ma")
-    out.save(os.path.join(OUT, "vorher-nachher.png"), optimize=True)
+        label(d, (40 + w + w // 2, y + h + 8), "Morgenstern Printer · Copy, 3rd gen. · default (35 %)", 19, anchor="ma")
+    out.save(os.path.join(OUT, "before-after.png"), optimize=True)
 
 
-# ------------------------------------------------------------------ Gesamt-Deckkraft
+# ------------------------------------------------------------------ overall opacity
 def strength():
     w, h = 300, 214
     art = flyer(w, h)
@@ -120,11 +120,11 @@ def strength():
     for k, v in enumerate(vals):
         x = 16 + k * (w + 16)
         out.paste(printed(art, {"texture": "copygrain", "strength": v}), (x, 16))
-        label(d, (x + w // 2, h + 24), f"Gesamt-Deckkraft {v} %" + (" (Standard)" if v == 35 else ""), 17, anchor="ma")
-    out.save(os.path.join(OUT, "deckkraft.png"), optimize=True)
+        label(d, (x + w // 2, h + 24), f"Opacity {v} %" + (" (default)" if v == 35 else ""), 17, anchor="ma")
+    out.save(os.path.join(OUT, "opacity.png"), optimize=True)
 
 
-# ------------------------------------------------------------------ Galerie aller Druckfehler
+# ------------------------------------------------------------------ gallery of all print defects
 def gallery():
     ns = noises()
     cols, tw, th, gap, cap = 6, 230, 150, 16, 28
@@ -149,24 +149,24 @@ def gallery():
             out.paste(printed(art, {"texture": n["id"], "strength": 75, "seed": 5}), (x, yy))
             label(d, (x + tw // 2, yy + th + 4), n["name"], 17, anchor="ma")
         y += ((len(items) + cols - 1) // cols) * (th + cap + gap)
-    out.save(os.path.join(OUT, "druckfehler.png"), optimize=True)
+    out.save(os.path.join(OUT, "defects.png"), optimize=True)
 
 
-# ------------------------------------------------------------------ Regler-Demo
+# ------------------------------------------------------------------ slider demo
 def controls():
     w, h = 300, 214
     art = flyer(w, h)
     base = {"texture": "copygrain", "strength": 60, "seed": 21}
     demos = [
-        ("Standard", {}),
-        ("Nur Toner", {"dropoutEnabled": False}),
-        ("Nur Aussetzer", {"tonerEnabled": False}),
-        ("Schmutz auf Papier 100 %", {"paperDirt": 100, "toner": 40}),
-        ("Papierton + Struktur", {"paperTone": 60, "paperGrain": 70, "paperToneColor": "#e8d9b5"}),
-        ("Toner farbig (Riso)", {"inkColor": "#2a3cff", "toner": 35}),
-        ("Körnung 80 %", {"grain": 80}),
-        ("Verlauf: Rahmen", {"fadeAmount": 90, "fadeStyle": "frame", "toner": 45, "dropout": 35}),
-        ("+ 2. Druckfehler", {"texture2": "drumstreaks", "texture2Mix": 70, "texture2Mode": "add"}),
+        ("Default", {}),
+        ("Toner only", {"dropoutEnabled": False}),
+        ("Dropouts only", {"tonerEnabled": False}),
+        ("Dirt on paper 100 %", {"paperDirt": 100, "toner": 40}),
+        ("Paper tone + texture", {"paperTone": 60, "paperGrain": 70, "paperToneColor": "#e8d9b5"}),
+        ("Coloured toner (riso)", {"inkColor": "#2a3cff", "toner": 35}),
+        ("Grain 80 %", {"grain": 80}),
+        ("Fade: frame", {"fadeAmount": 90, "fadeStyle": "frame", "toner": 45, "dropout": 35}),
+        ("+ second defect", {"texture2": "drumstreaks", "texture2Mix": 70, "texture2Mode": "add"}),
     ]
     cols, gap, cap = 3, 18, 30
     rows = (len(demos) + cols - 1) // cols
@@ -179,7 +179,7 @@ def controls():
         y = gap + (k // cols) * (h + cap + gap)
         out.paste(printed(art, dict(base, **over)), (x, y))
         label(d, (x + w // 2, y + h + 4), name, 18, anchor="ma")
-    out.save(os.path.join(OUT, "regler.png"), optimize=True)
+    out.save(os.path.join(OUT, "sliders.png"), optimize=True)
 
 
 if __name__ == "__main__":
@@ -192,4 +192,4 @@ if __name__ == "__main__":
     strength()
     gallery()
     controls()
-    print("Bilder geschrieben:", ", ".join(sorted(os.listdir(OUT))))
+    print("images written:", ", ".join(sorted(os.listdir(OUT))))
