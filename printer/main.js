@@ -38,19 +38,19 @@ const BUILTIN_PRESETS = {
 const SLIDERS = [
   { key: "strength", label: "Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secStrengthTop" },
   { key: "scale", label: "Größe", min: 10, max: 500, step: 1, unit: "%", parent: "secTexture" },
-  { key: "rotation", label: "Winkel", min: 0, max: 360, step: 1, unit: "°", parent: "secTexture" },
-  { key: "grainSize", label: "Korngröße", min: 0.5, max: 8, step: 0.5, unit: "px", parent: "secTexture" },
+  { key: "rotation", label: "Winkel", min: 0, max: 360, step: 1, unit: "°", parent: "secFineTex" },
+  { key: "grainSize", label: "Korngröße", min: 0.5, max: 8, step: 0.5, unit: "px", parent: "secFineTex" },
   { key: "texture2Mix", label: "Anteil", min: 0, max: 100, step: 1, unit: "%", parent: "secTexture2" },
   { key: "texture2Scale", label: "Größe", min: 10, max: 500, step: 1, unit: "%", parent: "secTexture2" },
   { key: "toner", label: "Menge", min: 0, max: 100, step: 1, unit: "%", parent: "secToner" },
-  { key: "tonerOpacity", label: "Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secToner" },
-  { key: "paperDirt", label: "Schmutz auf Papier", min: 0, max: 100, step: 1, unit: "%", parent: "secToner" },
+  { key: "tonerOpacity", label: "Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secFineToner" },
+  { key: "paperDirt", label: "Schmutz auf Papier", min: 0, max: 100, step: 1, unit: "%", parent: "secFineToner" },
   { key: "dropout", label: "Menge", min: 0, max: 100, step: 1, unit: "%", parent: "secDropout" },
-  { key: "dropoutOpacity", label: "Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secDropout" },
-  { key: "paperGrain", label: "Struktur", min: 0, max: 100, step: 1, unit: "%", parent: "secPaper" },
+  { key: "dropoutOpacity", label: "Deckkraft", min: 0, max: 100, step: 1, unit: "%", parent: "secFineDropout" },
+  { key: "paperGrain", label: "Struktur", min: 0, max: 100, step: 1, unit: "%", parent: "secFinePaper" },
   { key: "paperTone", label: "Papierton", min: 0, max: 100, step: 1, unit: "%", parent: "secPaper" },
-  { key: "grain", label: "Körnung", min: 0, max: 100, step: 1, unit: "%", parent: "secStructure" },
-  { key: "softness", label: "Weichheit", min: 0, max: 100, step: 1, unit: "%", parent: "secStructure" },
+  { key: "grain", label: "Körnung", min: 0, max: 100, step: 1, unit: "%", parent: "secPaper" },
+  { key: "softness", label: "Weichheit", min: 0, max: 100, step: 1, unit: "%", parent: "secFinePaper" },
   { key: "fadeAmount", label: "Stärke", min: 0, max: 100, step: 1, unit: "%", parent: "secFade" },
 ];
 const COLOR_KEYS = ["inkColor", "paperColor", "paperToneColor"];
@@ -346,7 +346,7 @@ function syncUI() {
 }
 
 const SEC_KEY = "msprinter.sections.v1";
-const SEC_DEFAULT = { looks: true, texture: true, layers: true, structure: false, more: false };
+const SEC_DEFAULT = { looks: true, texture: true, layers: true, fine: false, more: false };
 function bindControls() {
   UI.sections(SEC_KEY, SEC_DEFAULT);
   const bindCheck = (id, key) => UI.bindSwitch(id, (on) => { params[key] = on; syncUI(); changed(); });

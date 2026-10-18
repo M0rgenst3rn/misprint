@@ -86,7 +86,6 @@
           </div>
           <div class="group-body" id="tonerBody">
             <div id="secToner"></div>
-            <div class="field stack"><span class="field-label">Mischmodus</span><div class="seg wrap" id="tonerBlendSeg"></div></div>
           </div>
         </div>
 
@@ -98,7 +97,6 @@
           </div>
           <div class="group-body" id="dropoutBody">
             <div id="secDropout"></div>
-            <div class="field stack"><span class="field-label">Mischmodus</span><div class="seg wrap" id="dropoutBlendSeg"></div></div>
           </div>
         </div>
 
@@ -112,10 +110,20 @@
       </div>
     </div>
 
-    <div class="sec" data-sec="structure">
-      <div class="sec-head"><span class="sec-title">Struktur und Verlauf</span><span class="sec-meta">Körnung, Weichheit, Ausblenden</span><span class="chev c-open">–</span><span class="chev c-closed">+</span></div>
+    <div class="sec" data-sec="fine">
+      <div class="sec-head"><span class="sec-title">Feintuning</span><span class="sec-meta">alle weiteren Regler</span><span class="chev c-open">–</span><span class="chev c-closed">+</span></div>
       <div class="sec-body">
-        <div id="secStructure"></div>
+        <div class="fine-label">Druckfehler</div>
+        <div id="secFineTex"></div>
+        <div class="fine-label">Toner</div>
+        <div id="secFineToner"></div>
+        <div class="field stack"><span class="field-label">Mischmodus</span><div class="seg wrap" id="tonerBlendSeg"></div></div>
+        <div class="fine-label">Aussetzer</div>
+        <div id="secFineDropout"></div>
+        <div class="field stack"><span class="field-label">Mischmodus</span><div class="seg wrap" id="dropoutBlendSeg"></div></div>
+        <div class="fine-label">Papier</div>
+        <div id="secFinePaper"></div>
+        <div class="fine-label">Verlauf</div>
         <div id="secFade"></div>
         <div id="fadeStyleRow" class="field stack sub"><span class="field-label">Richtung</span><div class="seg wrap" id="fadeStyleSeg"></div></div>
       </div>
