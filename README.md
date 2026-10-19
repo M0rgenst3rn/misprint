@@ -1,26 +1,26 @@
 <p align="center">
-  <img src="docs/images/hero.png" alt="Morgenstern Printer" width="100%">
+  <img src="docs/images/hero.png" alt="Misprint" width="100%">
 </p>
 
 <p align="center">
   <b>Makes your whole Photoshop document look printed, photocopied or faxed – without PNG textures.</b><br>
   <sub>Photoshop 2023 (24.2) or newer · UXP panel</sub><br>
-  <sub>Free tools by <b>Morgenstern</b> · <a href="https://github.com/M0rgenst3rn/ms-distress">Morgenstern Distress</a> · <b>Morgenstern Printer</b> · <a href="https://github.com/M0rgenst3rn/ms-render">Morgenstern Render</a> · <a href="https://github.com/M0rgenst3rn/ms-phase">Morgenstern Phase</a> · <a href="https://github.com/M0rgenst3rn/ms-glow">Morgenstern Glow</a> · <a href="https://github.com/M0rgenst3rn/ms-gradients">Morgenstern Gradients</a> · <a href="https://github.com/M0rgenst3rn/ms-grids">Morgenstern Grids</a></sub>
+  <sub>More tools by <b>Linus Leinberger</b> · <a href="https://github.com/M0rgenst3rn/afterglow">Afterglow</a> · <a href="https://github.com/M0rgenst3rn/asciiwave">Asciiwave</a> · <a href="https://github.com/M0rgenst3rn/gradient-library">Gradient Library</a> · <a href="https://github.com/M0rgenst3rn/gridwork">Gridwork</a> · <a href="https://github.com/M0rgenst3rn/grime">Grime</a> · <a href="https://github.com/M0rgenst3rn/headliner">Headliner</a> · <b>Misprint</b> · <a href="https://github.com/M0rgenst3rn/seamline">Seamline</a> · <a href="https://github.com/M0rgenst3rn/vhold">Vhold</a></sub>
 </p>
 
 ---
 
-## What is Morgenstern Printer?
+## What is Misprint?
 
-Digital graphics often look too clean and too perfect. **Morgenstern Printer** gives them the look of real
+Digital graphics often look too clean and too perfect. **Misprint** gives them the look of real
 print: toner spots, dropouts, paper texture and noise. Everything is computed procedurally, without any image
 files.
 
-With one click the plugin puts a group **"MS Printer"** at the top of the document. It holds real texture
+With one click the plugin puts a group **"Misprint"** at the top of the document. It holds real texture
 layers that you can then adjust in Photoshop as usual:
 
 ```
-MS Printer   (group, opacity 35 %)
+Misprint   (group, opacity 35 %)
 ├─ Dropouts         paper colour where toner is missing
 ├─ Toner            dark spots, Multiply
 ├─ Paper texture    Soft Light
@@ -29,7 +29,7 @@ MS Printer   (group, opacity 35 %)
 
 <table>
 <tr>
-<td width="38%" valign="top"><img src="docs/images/panel.png" alt="The Morgenstern Printer panel in Photoshop"></td>
+<td width="38%" valign="top"><img src="docs/images/panel.png" alt="The Misprint panel in Photoshop"></td>
 <td valign="top">
 
 ### Highlights
@@ -47,7 +47,7 @@ MS Printer   (group, opacity 35 %)
 </tr>
 </table>
 
-**Morgenstern Printer looks at your document**:
+**Misprint looks at your document**:
 
 - **On light areas** defects appear as toner spots and fine dirt on the paper.
 - **On dark areas** they appear as light spots – missing toner and dust. So the look also shows on black images.
@@ -107,7 +107,7 @@ Old paper, plus your own presets.
    ```bash
    bash install-mac.sh
    ```
-3. (Re)start Photoshop → **Plugins › MS Printer**
+3. (Re)start Photoshop → **Plugins › Misprint**
 
 ### Alternative: UXP Developer Tool (macOS & Windows)
 
@@ -117,10 +117,10 @@ Old paper, plus your own presets.
 
 ## How to use it
 
-1. Open a document and start Morgenstern Printer
+1. Open a document and start Misprint
 2. Pick a defect or a look. The preview shows the result right away
 3. Click **Apply**, or turn on **Live**
-4. Fine-tune in the panel or directly on the group "MS Printer" in Photoshop
+4. Fine-tune in the panel or directly on the group "Misprint" in Photoshop
 5. **Remove** deletes the group again. Your artwork is never changed
 
 **Tip:** the group always sits at the very top. It only takes new content you add later into account when you
@@ -132,7 +132,7 @@ click "Apply" again or Live is on.
 printer/             The plugin (loaded into Photoshop as is)
   manifest.json      Plugin description
   index.html         Panel UI
-  ms-ui.js/.css      Shared Morgenstern controls and design
+  ui.js/.css      Shared controls and design
   main.js            Photoshop side (group, preview, Live, verify, self-test)
   core.js            Print defect engine and layer simulation, plain JavaScript
 install-mac.sh       Packs the plugin (.ccx) and installs it
@@ -149,7 +149,7 @@ In the panel, **Self-test** automatically checks 84 cases against the real Photo
 
 ## Found a bug? Got an idea?
 
-Get in touch! The easiest way is **[Issues](https://github.com/M0rgenst3rn/ms-printer/issues)** here on GitHub:
+Get in touch! The easiest way is **[Issues](https://github.com/M0rgenst3rn/misprint/issues)** here on GitHub:
 click **New issue** and briefly describe what happened. Your Photoshop version, operating system and a
 screenshot help a lot. All you need is a free GitHub account. Suggestions and feature requests are just as
 welcome.
@@ -167,5 +167,5 @@ Adobe and Photoshop are trademarks of Adobe Inc. This project is independent and
 
 ---
 
-<p align="center"><sub>Morgenstern Printer<br>
-Made by Linus Leinberger</sub></p>
+<p align="center"><sub>Misprint<br>
+Made by Linus Leinberger · <a href="https://www.instagram.com/linusleinberger">Instagram @linusleinberger</a></sub></p>

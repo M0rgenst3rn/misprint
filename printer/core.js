@@ -1,5 +1,5 @@
 "use strict";
-// MS Printer – core engine.
+// Misprint – core engine.
 // Procedural print defects (toner, copier, inkjet, riso, halftone, fax …) and the computation
 // of the dropout mask, toner layer, stray toner and misprint offset.
 // Plain JavaScript without Photoshop dependencies (runs in the plugin and in Node).
@@ -288,7 +288,7 @@ const DEFAULTS = {
   softness: 15,
   paperDirt: 30,
   autoAdapt: true,          // adapt the defects to the document colours (dark areas -> light defects)
-  strength: 35,             // opacity of the whole group "MS Printer"
+  strength: 35,             // opacity of the whole group "Misprint"
   fadeAmount: 0,
   fadeStyle: "frame",
   // paper
@@ -574,7 +574,7 @@ function hexRGB01(hex) {
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
 
-// Simulates the group "MS Printer" above the document (bottom -> top: paper tone, paper texture,
+// Simulates the group "Misprint" above the document (bottom -> top: paper tone, paper texture,
 // toner, dropouts) – for preview, tests and README images. Returns RGB (3 bytes/pixel).
 function compositeOverlay(src, comps, out, p) {
   p = Object.assign({}, DEFAULTS, p);

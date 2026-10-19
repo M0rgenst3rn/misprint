@@ -1,24 +1,24 @@
 "use strict";
-// MS Printer – Photoshop-UXP-Panel.
-// Makes the WHOLE document look printed: creates a group "MS Printer" on top with real
+// Misprint – Photoshop-UXP-Panel.
+// Makes the WHOLE document look printed: creates a group "Misprint" on top with real
 // texture layers (toner, dropouts, paper texture, paper tone) – procedural and matched to the document
 // (toner dirt on paper, dropouts only in the print).
 
 const { app, core, action, imaging } = require("photoshop");
 const { batchPlay } = action;
 const Core = require("./core.js");
-const UI = require("./ms-ui.js");
+const UI = require("./ui.js");
 const uxpStorage = require("uxp").storage;
 const lfs = uxpStorage.localFileSystem;
 
 const $ = (id) => document.getElementById(id);
-const STORE_KEY = "msprinter.state.v2";
-const PRESET_KEY = "msprinter.presets.v2";
-const GROUP_NAME = "MS Printer";
+const STORE_KEY = "misprint.state.v2";
+const PRESET_KEY = "misprint.presets.v2";
+const GROUP_NAME = "Misprint";
 const L = { dropout: "Dropouts", toner: "Toner", paper: "Paper texture", tone: "Paper tone" };
-// layer names of earlier (German) versions – still recognised as MS Printer layers
+// layer names of earlier (German) versions – still recognised as Misprint layers
 const L_OLD = ["Aussetzer", "Papierstruktur", "Papierton"];
-const HIST = "MS Printer";
+const HIST = "Misprint";
 
 const BUILTIN_PRESETS = {
   "Photocopy": { texture: "copygrain", toner: 25, dropout: 18, grain: 30, paperDirt: 45, paperGrain: 25 },
@@ -116,7 +116,7 @@ async function selectLayers(ids) {
   if (cmds.length) await batchPlay(cmds, {});
 }
 function findGroups(doc) { return doc.layers.filter((l) => l.name === GROUP_NAME && l.layers); }
-// loose MS Printer layers outside the group (must never be left over)
+// loose Misprint layers outside the group (must never be left over)
 function strayLayers(doc) {
   const names = Object.values(L).concat(L_OLD);
   return doc.layers.filter((l) => !l.layers && names.indexOf(l.name) >= 0);
@@ -151,7 +151,7 @@ function fromBuf8(buf, doc) {
 }
 function anyNonZero(a) { for (let i = 0; i < a.length; i++) if (a[i]) return true; return false; }
 
-// Reads the document WITHOUT the MS Printer group (hide the group briefly, roll the history back).
+// Reads the document WITHOUT the Misprint group (hide the group briefly, roll the history back).
 async function readComposite(ctx, doc, sourceBounds, targetSize) {
   const groups = findGroups(doc).filter((g) => g.visible);
   let hid = null;
@@ -198,7 +198,7 @@ function effectiveParams(p) {
 function diffParams(a, b) { return Object.keys(a).filter((k) => JSON.stringify(a[k]) !== JSON.stringify(b[k])); }
 const lastApplied = new Map(); // docId -> Parameter
 
-// ---------------------------------------------------------------- Controls (Morgenstern design, ms-ui.js)
+// ---------------------------------------------------------------- Controls (shared design, ui.js)
 
 function buildSliders() {
   for (const s of SLIDERS) {
@@ -347,7 +347,7 @@ function syncUI() {
   UI.syncSwitches();
 }
 
-const SEC_KEY = "msprinter.sections.v1";
+const SEC_KEY = "misprint.sections.v1";
 const SEC_DEFAULT = { looks: true, texture: true, layers: true, fine: false, more: false };
 function bindControls() {
   UI.sections(SEC_KEY, SEC_DEFAULT);
@@ -431,7 +431,7 @@ async function pickColor(key) {
     let res;
     await core.executeAsModal(async () => {
       res = await batchPlay([{
-        _obj: "showColorPicker", _target: { _ref: "application" }, context: "MS Printer",
+        _obj: "showColorPicker", _target: { _ref: "application" }, context: "Misprint",
         color: { _obj: "RGBColor", red: c0.r, grain: c0.g, blue: c0.b },
       }], {});
     }, { commandName: "Pick colour" });
@@ -522,7 +522,7 @@ async function renderPreview(msg) {
     m.textContent = "The preview needs Photoshop 24.2 or newer.";
   }
 }
-// short note on how MS Printer reads the document
+// short note on how Misprint reads the document
 function showDocInfo(info) {
   if (!info || busy) return;
   const dark = Math.round(info.darkShare * 100);
@@ -636,7 +636,7 @@ async function deleteImageTexture(id) {
 
 // ---------------------------------------------------------------- Apply / remove
 
-// Computes the layer contents for the whole document (without an existing MS Printer group)
+// Computes the layer contents for the whole document (without an existing Misprint group)
 async function computeForDocument(ctx, doc, p) {
   const b = docBounds(doc);
   const c = await readComposite(ctx, doc, b, null);
@@ -791,7 +791,7 @@ async function verifyDocument(ctx, doc, p) {
   const names = Object.keys(want);
   const fail = (m) => { r.errors = (r.errors ? r.errors + ", " : "") + m; };
   const loose = strayLayers(doc).length;
-  if (loose) fail(`${loose} loose MS Printer layer(s) outside the group`);
+  if (loose) fail(`${loose} loose Misprint layer(s) outside the group`);
   if (!names.length) { if (groups.length) fail("group should be missing"); r.ok = !r.errors; return r; }
   if (groups.length !== 1) { fail(groups.length ? "several groups" : "group missing"); r.ok = false; return r; }
   const g = groups[0];
@@ -865,7 +865,7 @@ async function runSelfTest() {
   setStatus("Self-test running… (about 1–2 minutes, please don't click)");
   try {
     await core.executeAsModal(async () => {
-      doc = await app.documents.add({ width: 900, height: 520, resolution: 72, mode: "RGBColorMode", fill: "white", name: "MS Printer self-test" });
+      doc = await app.documents.add({ width: 900, height: 520, resolution: 72, mode: "RGBColorMode", fill: "white", name: "Misprint self-test" });
       await batchPlay([{ _obj: "make", _target: [{ _ref: "layer" }], using: { _obj: "layer", name: "Artwork" } }], {});
       const al = doc.activeLayers[0];
       const id = await imaging.createImageDataFromBuffer(testArtwork(900, 520), { width: 900, height: 520, components: 4, chunky: true, colorSpace: "RGB", colorProfile: "sRGB IEC61966-2.1" });

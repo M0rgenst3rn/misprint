@@ -31,7 +31,7 @@ def font(path, size):
 
 
 def printed(img, params):
-    """Applies MS Printer (whole document) to an RGB image."""
+    """Applies Misprint (whole document) to an RGB image."""
     global _n
     _n += 1
     a = os.path.join(TMP, f"a{_n}.rgb")
@@ -78,8 +78,8 @@ def hero():
     art = Image.new("RGB", (W, H), PAPER)
     d = ImageDraw.Draw(art)
     f = font(IMPACT, 250)
-    l, t, r, b = f.getbbox("MS PRINTER")
-    d.text(((W - (r - l)) // 2 - l, 40 - t), "MS PRINTER", font=f, fill=(232, 62, 140))
+    l, t, r, b = f.getbbox("MISPRINT")
+    d.text(((W - (r - l)) // 2 - l, 40 - t), "MISPRINT", font=f, fill=(232, 62, 140))
     f2 = font(BLACK, 40)
     txt = "TONER · COPIER · RISO · INKJET · HALFTONE · FAX"
     l, t, r, b = f2.getbbox(txt)
@@ -105,7 +105,7 @@ def before_after():
         out.paste(art, (20, y))
         out.paste(printed(art, p), (40 + w, y))
         label(d, (20 + w // 2, y + h + 8), f"{name} · Original", 19, anchor="ma")
-        label(d, (40 + w + w // 2, y + h + 8), "Morgenstern Printer · Copy, 3rd gen. · default (35 %)", 19, anchor="ma")
+        label(d, (40 + w + w // 2, y + h + 8), "Misprint · Copy, 3rd gen. · default (35 %)", 19, anchor="ma")
     out.save(os.path.join(OUT, "before-after.png"), optimize=True)
 
 

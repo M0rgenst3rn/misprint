@@ -1,6 +1,6 @@
 {
-  "id": "com.linus.msprinter",
-  "name": "MS Printer",
+  "id": "com.linus.misprint",
+  "name": "Misprint",
   "version": "2.1.1",
   "main": "index.html",
   "manifestVersion": 5,
@@ -16,7 +16,7 @@
       "type": "panel",
       "id": "printerPanel",
       "label": {
-        "default": "MS Printer"
+        "default": "Misprint"
       },
       "minimumSize": {
         "width": 260,
